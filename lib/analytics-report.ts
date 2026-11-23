@@ -2,6 +2,7 @@ import {
   analyticsEventSchema,
   pilotCodes,
   participantCohort,
+  LEGACY_GAME_ANALYTICS_VERSION,
   type AnalyticsCohort,
   type AnalyticsEvent,
 } from "./analytics-schema.ts";
@@ -213,7 +214,13 @@ export function summarizeAnalytics(
         saved.has(x.event.data.executionId),
     );
     const game =
-      items.some((x) => x.event.name === "game_check" && x.event.data.passed) &&
+      ctx.surface === "game" &&
+      items.some(
+        (x) =>
+          x.event.name === "game_check" &&
+          (ctx.contentVersion !== LEGACY_GAME_ANALYTICS_VERSION ||
+            x.event.data.passed),
+      ) &&
       items.some(
         (x) =>
           x.event.name === "mission_end" &&
