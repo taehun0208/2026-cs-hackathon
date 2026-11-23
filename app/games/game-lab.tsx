@@ -512,6 +512,8 @@ function Cloud({ finish }: PlayProps) {
 const games = [
   {
     id: "frontend",
+    scene: "신청 화면 준비",
+    next: "신청 화면이 열렸어요. 곧 신청이 몰려와요.",
     role: "프론트엔드",
     name: "작은 화면 수리하기",
     summary: "큰 글자도 잘리지 않게 버튼 고치기",
@@ -523,6 +525,8 @@ const games = [
   },
   {
     id: "backend",
+    scene: "신청 오픈",
+    next: "표 처리는 안전해졌어요. 그런데 신청이 계속 몰려와요.",
     role: "백엔드",
     name: "마지막 표 한 장",
     summary: "동시 신청에도 표 한 장만 발급하기",
@@ -534,29 +538,22 @@ const games = [
     play: Backend,
   },
   {
-    id: "data",
-    role: "데이터 분석",
-    name: "실제 방문자 세기",
-    summary: "재입장을 빼고 실제 방문자 세기",
-    intro: "같은 사람의 재입장 기록을 빼서 실제 방문자 수를 찾아봐요.",
+    id: "cloud",
+    scene: "신청 폭주",
+    next: "서비스가 버텼어요. 이제 행사 전날 정리가 남았어요.",
+    role: "클라우드/SRE",
+    name: "신청 대기 줄 없애기",
+    summary: "서버를 옮겨 바쁜 창구의 대기 줄이기",
+    intro: "대기가 남은 창구의 ＋를 눌러 서버를 한 대씩 더 배치해봐요.",
     learned:
-      "기록 수와 사람 수는 다를 수 있어요. 무엇을 한 건으로 셀지 먼저 정하는 일이에요.",
-    icon: ChartColumn,
-    play: Data,
-  },
-  {
-    id: "ai",
-    role: "AI 엔지니어",
-    name: "근거를 보고 답하는 봇",
-    summary: "질문에 맞는 공지를 골라 답하기",
-    intro: "질문의 ‘이번 주’와 ‘영화제’가 모두 맞는 공지 한 장부터 골라봐요.",
-    learned:
-      "질문에 맞는 자료를 고르고 그 내용과 답변을 대조해야 엉뚱한 안내를 줄일 수 있어요.",
-    icon: BrainCircuit,
-    play: AI,
+      "정해진 자원 안에서 바쁜 곳에 서버를 더 배치하고 대기가 줄었는지 확인하는 일이에요.",
+    icon: Server,
+    play: Cloud,
   },
   {
     id: "security",
+    scene: "행사 전날",
+    next: "권한 정리가 끝났어요. 행사 당일 문의가 들어와요.",
     role: "보안 엔지니어",
     name: "필요한 문만 열기",
     summary: "사람마다 필요한 자료만 열어주기",
@@ -568,18 +565,35 @@ const games = [
     play: Security,
   },
   {
-    id: "cloud",
-    role: "클라우드/SRE",
-    name: "신청 대기 줄 없애기",
-    summary: "서버를 옮겨 바쁜 창구의 대기 줄이기",
-    intro: "대기가 남은 창구의 ＋를 눌러 서버를 한 대씩 더 배치해봐요.",
+    id: "ai",
+    scene: "행사 당일 문의",
+    next: "안내 봇이 정확히 답해요. 입장이 시작돼요.",
+    role: "AI 엔지니어",
+    name: "근거를 보고 답하는 봇",
+    summary: "질문에 맞는 공지를 골라 답하기",
+    intro: "질문의 ‘이번 주’와 ‘영화제’가 모두 맞는 공지 한 장부터 골라봐요.",
     learned:
-      "정해진 자원 안에서 바쁜 곳에 서버를 더 배치하고 대기가 줄었는지 확인하는 일이에요.",
-    icon: Server,
-    play: Cloud,
+      "질문에 맞는 자료를 고르고 그 내용과 답변을 대조해야 엉뚱한 안내를 줄일 수 있어요.",
+    icon: BrainCircuit,
+    play: AI,
+  },
+  {
+    id: "data",
+    scene: "입장 후 정산",
+    next: "행사가 끝났어요. 오늘 하루를 함께 운영했어요.",
+    role: "데이터 분석",
+    name: "실제 방문자 세기",
+    summary: "재입장을 빼고 실제 방문자 세기",
+    intro: "같은 사람의 재입장 기록을 빼서 실제 방문자 수를 찾아봐요.",
+    learned:
+      "기록 수와 사람 수는 다를 수 있어요. 무엇을 한 건으로 셀지 먼저 정하는 일이에요.",
+    icon: ChartColumn,
+    play: Data,
   },
 ] satisfies {
   id: TrackId;
+  scene: string;
+  next: string;
   role: string;
   name: string;
   summary: string;
@@ -603,8 +617,10 @@ export default function GameLab({ initialTrack }: { initialTrack?: TrackId }) {
     [won, setWon] = useState(false),
     [attempt, setAttempt] = useState(0);
   const done = games.filter((g) => state.games?.[g.id]);
+  const nextIndex = games.findIndex((g) => !state.games?.[g.id]);
   const current = game === null ? null : games[game],
-    Play = current?.play;
+    Play = current?.play,
+    following = game === null ? undefined : games[game + 1];
   const choose = (
     i: number | null,
     replay = false,
@@ -803,12 +819,16 @@ export default function GameLab({ initialTrack }: { initialTrack?: TrackId }) {
                 <button
                   key={g.role}
                   aria-label={`${g.role} 게임 시작`}
+                  aria-describedby={`game-scene-${g.id}`}
                   onClick={() => choose(i)}
                 >
                   <span className={s.cardIcon} aria-hidden="true">
                     <g.icon size={25} strokeWidth={1.7} />
                   </span>
-                  <span className={s.cardRole}>{g.role}</span>
+                  <span className={s.cardRole} id={`game-scene-${g.id}`}>
+                    {i + 1}. {g.scene} · {g.role}
+                    {i === nextIndex && " · 다음 추천"}
+                  </span>
                   <strong>{g.name}</strong>
                   <span className={s.cardDescription}>{g.summary}</span>
                   <span className={s.cardAction}>
@@ -822,6 +842,18 @@ export default function GameLab({ initialTrack }: { initialTrack?: TrackId }) {
                 </button>
               ))}
             </div>
+            {done.length === games.length && (
+              <section className={s.complete} role="status">
+                <h2>축제 하루를 함께 운영했어요!</h2>
+                <ul className={s.recap}>
+                  {games.map((g) => (
+                    <li key={g.id}>
+                      <strong>{g.role}</strong> {g.learned}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
             <p className={s.footnote}>
               게임 완료와 흥미 평가는 이 브라우저의 기록으로 저장돼요. 나의
               기록과 비교하기에서 다시 볼 수 있고, 코드 체험 회고와는 따로
@@ -872,6 +904,7 @@ export default function GameLab({ initialTrack }: { initialTrack?: TrackId }) {
             <h2 id="game-complete-title">작은 업무 하나를 해봤어요</h2>
 
             <p>{current.learned}</p>
+            <p>{current.next}</p>
             <fieldset className={s.rating}>
               <legend>
                 이 일을 해보니 얼마나 흥미로웠나요? <small>(선택)</small>
@@ -909,7 +942,15 @@ export default function GameLab({ initialTrack }: { initialTrack?: TrackId }) {
               <small>1점 별로 흥미롭지 않음 · 5점 매우 흥미로움</small>
             </fieldset>
             <div className={s.keys}>
-              <Link className="btn primary" href={`/?track=${current.id}`}>
+              {following && (
+                <button
+                  className="btn primary"
+                  onClick={() => choose(game! + 1)}
+                >
+                  다음 장면: {following.role} <ArrowRight size={16} />
+                </button>
+              )}
+              <Link className="btn secondary" href={`/?track=${current.id}`}>
                 같은 직무 코드로 해보기 <ArrowRight size={16} />
               </Link>
               <Link className="btn secondary" href="/?view=compare">
@@ -921,8 +962,10 @@ export default function GameLab({ initialTrack }: { initialTrack?: TrackId }) {
               >
                 한 번 더 해보기
               </button>
-              <button className="btn primary" onClick={() => choose(null)}>
-                다른 직무 고르기
+              <button className="btn secondary" onClick={() => choose(null)}>
+                {done.length === games.length
+                  ? "하루 정리 보기"
+                  : "다른 직무 고르기"}
               </button>
             </div>
           </section>
