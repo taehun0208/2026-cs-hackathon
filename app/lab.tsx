@@ -37,10 +37,8 @@ import {
   missions,
   events as originalEvents,
   canStartMission,
-  emptyState,
   initialProgress,
   missionById,
-  type LabState,
   type TrackId,
   type Progress,
   type Profile,
@@ -71,12 +69,8 @@ import { AnalyticsSettings, useAnalytics } from "./analytics-settings";
 import { requestCoach } from "../lib/coach-request";
 import { activityHref, selectedActivity } from "../lib/activities";
 import { DeadlineExceeded } from "../lib/async-deadline";
-import {
-  createPersistence,
-  isRecordReset,
-  hasWork,
-  type SaveStatus,
-} from "../lib/persistence";
+import { hasWork } from "../lib/persistence";
+import { useStoredLab } from "./use-stored-lab";
 
 type View = "home" | "work" | "journal" | "compare" | "guide";
 type HistoryMode = "push" | "replace";
@@ -219,18 +213,22 @@ export default function Lab({
   const entryHandled = useRef("");
   const [locationVersion, setLocationVersion] = useState(0);
   const [view, setView] = useState<View>("home"),
-    [state, setState] = useState<LabState>(emptyState),
     [notice, setNotice] = useState("");
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>({
-    phase: "loading",
-    ready: false,
-    localSaved: false,
-    savedAt: null,
-    expiresAt: null,
-    message: "",
+  const {
+    state,
+    setState,
+    status: saveStatus,
+    controller: persistence,
+  } = useStoredLab({
+    onSaved: (next) => analytics.client.current?.saved(next),
+    onExternalReset: () => {
+      cancelCoach();
+      cancelExecution();
+      reflectionDraft.current = null;
+      setModal(null);
+    },
   });
   const analytics = useAnalytics(saveStatus.phase !== "loading");
-  const persistence = useRef<ReturnType<typeof createPersistence> | null>(null);
   const executionEpoch = useRef(0);
   const editor = useRef<HTMLTextAreaElement | null>(null);
   // Resolve the existing consent before a direct link starts its journey.
@@ -377,41 +375,6 @@ export default function Lab({
   }
   useEffect(() => {
     let alive = true;
-    const controller = createPersistence({
-      storage: {
-        get length() {
-          return localStorage.length;
-        },
-        key: (index) => localStorage.key(index),
-        getItem: (key) => localStorage.getItem(key),
-        setItem: (key, value) => localStorage.setItem(key, value),
-        removeItem: (key) => localStorage.removeItem(key),
-      },
-      tabStorage: {
-        getItem: (key) => sessionStorage.getItem(key),
-        setItem: (key, value) => sessionStorage.setItem(key, value),
-        removeItem: (key) => sessionStorage.removeItem(key),
-      },
-      onState: (next) => {
-        if (alive) setState(next);
-      },
-      onSaved: (next) => analytics.client.current?.saved(next),
-      onStatus: (next) => {
-        if (alive) setSaveStatus(next);
-      },
-    });
-    persistence.current = controller;
-    void controller.load();
-    const onStorage = (e: StorageEvent) => {
-      if (isRecordReset(e)) {
-        cancelCoach();
-        cancelExecution();
-        controller.externalReset();
-        reflectionDraft.current = null;
-        setModal(null);
-      }
-    };
-    window.addEventListener("storage", onStorage);
     fetch("/api/coach")
       .then((r) => r.json() as Promise<{ available: boolean }>)
       .then((d) => {
@@ -420,17 +383,12 @@ export default function Lab({
       .catch(() => {});
     return () => {
       alive = false;
-      controller.dispose();
       executionEpoch.current += 1;
       if (toastTimer.current) clearTimeout(toastTimer.current);
-      window.removeEventListener("storage", onStorage);
       coachEpoch.current += 1;
       coachController.current?.abort();
     };
   }, []);
-  useEffect(() => {
-    persistence.current?.stage(state);
-  }, [state]);
   useEffect(() => {
     const changed = () => setLocationVersion((value) => value + 1);
     window.addEventListener("popstate", changed);
