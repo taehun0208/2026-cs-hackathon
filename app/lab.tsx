@@ -28,11 +28,9 @@ import {
   CloudOff,
   Search,
   FolderOpen,
-  Sparkles,
   BrainCircuit,
   ShieldCheck,
   Server,
-  ArrowUpRight,
 } from "lucide-react";
 import {
   missions,
@@ -101,109 +99,35 @@ const trackGroup: Record<TrackId, string> = {
   security: "ops",
   cloud: "ops",
 };
+const taskLabels: Record<TrackId, { title: string; description: string }> = {
+  frontend: {
+    title: "행사 목록 필터 만들기",
+    description: "선택한 카테고리에 맞게 화면을 바꿔요.",
+  },
+  backend: {
+    title: "신청 조건 확인하기",
+    description: "중복 신청과 남은 정원을 확인해요.",
+  },
+  data: {
+    title: "행사 참여율 집계하기",
+    description: "중복·취소를 정리하고 참여율을 구해요.",
+  },
+  ai: {
+    title: "AI 참고 문서 고르기",
+    description: "질문과 관련 있는 근거를 찾아요.",
+  },
+  security: {
+    title: "접근 권한 확인하기",
+    description: "내 정보와 다른 사람의 정보를 구분해요.",
+  },
+  cloud: {
+    title: "배포 여부 판단하기",
+    description: "오류율과 응답 속도로 배포를 결정해요.",
+  },
+};
 function TrackIcon({ id, size = 22 }: { id: TrackId; size?: number }) {
   const Icon = icons[id];
   return <Icon size={size} strokeWidth={1.8} />;
-}
-function Mini({ id }: { id: TrackId }) {
-  return (
-    <div className={`task-art art-${id}`} aria-hidden="true">
-      {id === "frontend" ? (
-        <div className="art-window">
-          <div className="art-dots">
-            <i />
-            <i />
-            <i />
-          </div>
-          <div className="art-pills">
-            <b>전체</b>
-            <span>개발</span>
-            <span>진로</span>
-          </div>
-          <div className="art-event">
-            <span />
-            <div>
-              <b>나만의 웹페이지 만들기</b>
-              <small>신청 가능</small>
-            </div>
-            <Check size={16} />
-          </div>
-        </div>
-      ) : id === "backend" ? (
-        <div className="art-flow">
-          <span>신청 요청</span>
-          <div className="art-link" />
-          <div className="art-rule">
-            <Braces size={18} /> 중복 확인
-          </div>
-          <div className="art-link" />
-          <b>
-            <Check size={13} /> 신청 완료 <code>201</code>
-          </b>
-        </div>
-      ) : id === "data" ? (
-        <div className="art-chart">
-          <span>행사 참여율</span>
-          <div>
-            <i style={{ height: "45%" }} />
-            <i style={{ height: "85%" }} />
-            <i style={{ height: "62%" }} />
-          </div>
-          <small>개발　　 동아리　　 진로</small>
-        </div>
-      ) : id === "ai" ? (
-        <div className="art-retrieval">
-          <div>
-            <Search size={14} /> 신청 취소는 어떻게 하나요?
-          </div>
-          <ul>
-            <li>
-              <span>신청 · 취소 안내</span>
-              <b>2</b>
-            </li>
-            <li>
-              <span>신청 방법</span>
-              <b>1</b>
-            </li>
-            <li>
-              <span>행사 장소</span>
-              <b>0</b>
-            </li>
-          </ul>
-        </div>
-      ) : id === "security" ? (
-        <div className="art-access">
-          <ShieldCheck size={35} />
-          <div>
-            <span>내 신청 내역</span>
-            <b>
-              접근 허용 <Check size={13} />
-            </b>
-          </div>
-          <div>
-            <span>다른 사람의 내역</span>
-            <small>접근 차단</small>
-          </div>
-        </div>
-      ) : (
-        <div className="art-release">
-          <span>
-            <i /> 새 버전 관측 중
-          </span>
-          <div>
-            <small>오류율</small>
-            <b>3.0%</b>
-            <svg viewBox="0 0 100 30">
-              <polyline points="0,26 20,23 35,25 50,17 65,20 80,9 100,2" />
-            </svg>
-          </div>
-          <strong>
-            <RotateCcw size={14} /> 이전 버전으로 복구
-          </strong>
-        </div>
-      )}
-    </div>
-  );
 }
 function Rating({
   label,
@@ -778,7 +702,7 @@ export default function Lab() {
     patch(active, { reflection: recorded });
     setModal(null);
     navigate("journal");
-    toast("체험과 회고를 기록했어요. 다른 작업도 비교해보세요.");
+    toast("회고를 남겼어요. 상단에서 저장 상태를 확인해주세요.");
   }
   function download() {
     const blob = new Blob([JSON.stringify(state, null, 2)], {
@@ -803,8 +727,26 @@ export default function Lab() {
   }
   const passed = progress.result?.tests.filter((t) => t.passed).length ?? 0;
   const hasAttempt = canRecordAttempt(progress);
+  const resumeMission = missions
+    .filter((m) => state.progress[m.id] && !isCompleted(state.progress[m.id]!))
+    .sort((a, b) =>
+      (state.progress[b.id]?.updatedAt ?? "").localeCompare(
+        state.progress[a.id]?.updatedAt ?? "",
+      ),
+    )[0];
+  const reflectionPrompt = !hasAttempt
+    ? "코드를 수정하고 실행한 뒤 기록할 수 있어요."
+    : !reflection.interest || !reflection.difficulty || !reflection.again
+      ? "세 가지 질문에 점수를 골라주세요."
+      : !reflection.note.trim()
+        ? "재미있거나 어려웠던 순간을 짧게 적어주세요."
+        : !selectedNext
+          ? "다음에 해볼 활동을 골라주세요."
+          : !nextReason.trim()
+            ? "이 활동을 고른 이유를 적어주세요."
+            : "";
   return (
-    <div className="app-shell">
+    <div className={`app-shell view-${view}`}>
       <header className="site-header">
         <div className="nav-inner">
           <button
@@ -815,9 +757,7 @@ export default function Lab() {
             <span className="brand-mark">
               <FlaskConical size={23} />
             </span>
-            <span>
-              해보기<span className="brand-dot">.</span>
-            </span>
+            <span>해보기</span>
           </button>
           <nav aria-label="주 메뉴">
             {(
@@ -835,6 +775,11 @@ export default function Lab() {
                     : ""
                 }
                 onClick={() => navigate(id)}
+                aria-current={
+                  view === id || (view === "work" && id === "home")
+                    ? "page"
+                    : undefined
+                }
               >
                 {label}
                 {id === "journal" && completed.length > 0 && (
@@ -949,70 +894,48 @@ export default function Lab() {
       {view === "home" && (
         <main inert={!ready} className="home wrap">
           <section className="welcome">
-            <div>
-              <p className="welcome-kicker">개발 직무 맛보기</p>
-              <h1>
-                어떤 일이 나와 맞을까?
-                <br />
-                일단, 해보기.
-              </h1>
-              <p className="welcome-description">
-                설치 없이 작은 업무 하나로 시작해요.
-              </p>
-              <div className="flex flex-wrap gap-3">
-                <button
-                  className="btn primary"
-                  disabled={!ready}
-                  onClick={() => start("frontend")}
-                >
-                  처음이라면 화면 만들기 <ArrowUpRight size={18} />
-                </button>
-                <Link className="btn soft" href="/games">
-                  게임으로 배우기 <ArrowUpRight size={18} />
-                </Link>
-              </div>
-            </div>
-            <button
-              className="featured-task"
-              disabled={
-                !ready || (!state.progress.ai && !canStartMission("ai"))
-              }
-              onClick={() => start("ai")}
-            >
-              <div className="featured-label">
-                <BrainCircuit size={18} /> 오늘의 다른 선택{" "}
-                <span>{missionById("ai")!.time}</span>
-              </div>
-              <Mini id="ai" />
-              <div className="featured-bottom">
-                <div>
-                  <small>AI 엔지니어</small>
-                  <strong>AI가 참고할 문서 골라보기</strong>
-                </div>
-                <ArrowUpRight size={23} />
-              </div>
-            </button>
+            <h1>어떤 일을 해보고 싶나요?</h1>
+            <p className="welcome-description">
+              작은 코드를 바꾸고 실행하며, 궁금했던 직무를 경험해봐요.
+            </p>
           </section>
+          {resumeMission && (
+            <section className="resume-panel" aria-label="진행 중인 체험">
+              <span className="resume-icon">
+                <TrackIcon id={resumeMission.id} />
+              </span>
+              <div>
+                <p>이어서 해볼까요?</p>
+                <h2>{taskLabels[resumeMission.id].title}</h2>
+              </div>
+              <button
+                className="btn primary compact"
+                disabled={!ready}
+                onClick={() => start(resumeMission.id)}
+              >
+                이어하기 <ChevronRight size={16} />
+              </button>
+            </section>
+          )}
           <section id="tracks" className="catalog">
             <div className="catalog-heading">
-              <h2>해보고 싶은 일</h2>
-              <span>{missions.length}개 체험</span>
-            </div>
-            <div
-              className="catalog-filters"
-              role="group"
-              aria-label="직무 분야"
-            >
-              {groups.map(([id, label]) => (
-                <button
-                  key={id}
-                  aria-pressed={group === id}
-                  className={group === id ? "selected" : ""}
-                  onClick={() => setGroup(id)}
-                >
-                  {label}
-                </button>
-              ))}
+              <h2>직무 고르기</h2>
+              <div
+                className="catalog-filters"
+                role="group"
+                aria-label="직무 분야"
+              >
+                {groups.map(([id, label]) => (
+                  <button
+                    key={id}
+                    aria-pressed={group === id}
+                    className={group === id ? "selected" : ""}
+                    onClick={() => setGroup(id)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="catalog-grid">
               {missions
@@ -1025,36 +948,36 @@ export default function Lab() {
                         className="job-open"
                         disabled={!ready || (!p && !canStartMission(m.id))}
                         onClick={() => start(m.id)}
-                        aria-label={`${m.title} ${p ? "이어서 해보기" : canStartMission(m.id) ? "체험 시작" : "새 체험 준비 중"}`}
+                        aria-label={`${m.title} ${p ? (isCompleted(p) ? "체험 다시 열기" : "이어서 해보기") : canStartMission(m.id) ? "체험 시작" : "새 체험 준비 중"}`}
                       >
-                        <div className="job-art">
-                          <Mini id={m.id} />
-                          {!p && !canStartMission(m.id) && (
-                            <span className="job-status">새 체험 준비 중</span>
-                          )}
-                          {p && (
+                        <div className="job-top">
+                          <span className="job-icon">
+                            <TrackIcon id={m.id} size={25} />
+                          </span>
+                          {(p || !canStartMission(m.id)) && (
                             <span className="job-status">
-                              {p.reflection ? (
-                                <>
-                                  <Check size={12} /> {recordStatus(p)}
-                                </>
-                              ) : (
-                                "진행 중"
-                              )}
+                              {p
+                                ? p.reflection
+                                  ? recordStatus(p)
+                                  : "진행 중"
+                                : "새 체험 준비 중"}
                             </span>
                           )}
                         </div>
                         <div className="job-info">
-                          <div className="job-role">
-                            <TrackIcon id={m.id} size={17} />
-                            {m.title}
-                            <span>{m.time}</span>
-                          </div>
-                          <h3>{m.action}</h3>
-                          <p>{m.description}</p>
+                          <p className="job-role">{m.title}</p>
+                          <h3>{taskLabels[m.id].title}</h3>
+                          <p>{taskLabels[m.id].description}</p>
                           <div className="job-bottom">
-                            <span>{m.concepts.join(" · ")}</span>
-                            <ArrowUpRight size={18} />
+                            <span>약 {m.time}</span>
+                            <span className="job-link">
+                              {p
+                                ? isCompleted(p)
+                                  ? "다시 열기"
+                                  : "이어하기"
+                                : "시작하기"}{" "}
+                              <ChevronRight size={16} />
+                            </span>
                           </div>
                         </div>
                       </button>
@@ -1074,9 +997,21 @@ export default function Lab() {
               <ChevronRight size={18} />
             </button>
           )}
+          <Link className="game-entry" href="/games">
+            <span className="game-entry-icon">
+              <Monitor size={24} />
+            </span>
+            <div>
+              <h2>코드가 아직 낯설다면</h2>
+              <p>게임으로 직무를 먼저 둘러봐요.</p>
+            </div>
+            <span className="game-entry-action">
+              게임 해보기 <ChevronRight size={18} />
+            </span>
+          </Link>
           <footer className="site-footer">
             <span>
-              해보기 <small>직무 선택 전, 작은 경험 하나.</small>
+              해보기 <small>작게 해보고, 다음을 골라요.</small>
             </span>
             <button onClick={() => navigate("guide")}>
               이용 · 데이터 안내
@@ -1130,7 +1065,7 @@ export default function Lab() {
               </p>
             </div>
             <button
-              className="btn primary"
+              className="btn secondary"
               disabled={!hasAttempt || running}
               onClick={openReflection}
             >
@@ -1612,7 +1547,8 @@ export default function Lab() {
                 <p>코드와 질문에 맞는 검수 힌트를 골라요.</p>
                 <details className="ai-details" open={aiAvailable}>
                   <summary>
-                    <Sparkles size={15} /> 질문하기
+                    <MessageCircle size={16} /> AI에게 질문하기{" "}
+                    <ChevronRight className="disclosure-chevron" size={16} />
                   </summary>
                   {!aiAvailable && (
                     <p className="muted">
@@ -1725,16 +1661,13 @@ export default function Lab() {
       {view === "journal" && (
         <main inert={!ready} className="wrap records-page">
           <div className="page-intro">
-            <span className="context-tag">
-              <BookOpen size={16} /> 나의 기록
-            </span>
-            <h1>나의 체험 기록</h1>
-            <p>재미있었던 일과 다음에 해볼 일.</p>
+            <h1>나의 기록</h1>
+            <p>직접 해본 일과 다음에 해볼 일을 모았어요.</p>
           </div>
           {!recorded.length ? (
             <div className="empty-state">
               <FolderOpen size={42} />
-              <h2>첫 경험을 기다리고 있어요.</h2>
+              <h2>아직 남긴 회고가 없어요</h2>
               <p>
                 코드를 수정하고 실행한 뒤 회고를 남기면
                 <br />
@@ -1881,11 +1814,8 @@ export default function Lab() {
       {view === "compare" && (
         <main inert={!ready} className="wrap compare-page">
           <div className="page-intro">
-            <span className="context-tag">
-              <ChartNoAxesCombined size={16} /> 비교하기
-            </span>
-            <h1>나에게 남은 경험을 나란히.</h1>
-            <p>성적보다 과정에서 느낀 흥미를 살펴보세요.</p>
+            <h1>체험 비교</h1>
+            <p>어떤 일이 재미있었는지, 내 회고를 나란히 살펴봐요.</p>
           </div>
           {completed.length < 2 ? (
             <div className="empty-state">
@@ -1906,8 +1836,16 @@ export default function Lab() {
             </div>
           ) : (
             <>
-              <div className="compare-table-wrap">
-                <table className="compare-table">
+              <div
+                className="compare-table-wrap"
+                tabIndex={0}
+                role="region"
+                aria-label="직무별 회고 비교"
+              >
+                <table
+                  className="compare-table"
+                  style={{ minWidth: 160 + completed.length * 220 }}
+                >
                   <thead>
                     <tr>
                       <th>나의 회고</th>
@@ -2019,11 +1957,8 @@ export default function Lab() {
       {view === "guide" && (
         <main inert={!ready} className="wrap guide-page">
           <div className="page-intro">
-            <span className="context-tag">
-              <HelpCircle size={16} /> 도움말
-            </span>
-            <h1>작게 해보고, 솔직하게 남겨요.</h1>
-            <p>체험을 시작하기 전에 알아두면 좋은 것들.</p>
+            <h1>도움말</h1>
+            <p>체험 방법과 기록·데이터 안내를 확인해요.</p>
           </div>
           <div className="guide-grid">
             <section>
@@ -2110,7 +2045,7 @@ export default function Lab() {
       {view !== "home" && view !== "work" && (
         <footer className="wrap site-footer">
           <span>
-            해보기. <small>작은 경험으로 찾는 나의 방향</small>
+            해보기 <small>작게 해보고, 다음을 골라요.</small>
           </span>
           <button onClick={() => navigate("guide")}>이용 및 데이터 안내</button>
         </footer>
@@ -2255,18 +2190,19 @@ export default function Lab() {
                     />
                   </label>
                 )}
+                <p
+                  className="reflection-prompt"
+                  id="reflection-prompt"
+                  role="status"
+                >
+                  {reflectionPrompt ||
+                    "기록을 남기고 다른 체험과 비교해보세요."}
+                </p>
                 <button
                   className="btn primary full"
                   onClick={finishReflection}
-                  disabled={
-                    !canRecordAttempt(progress) ||
-                    !reflection.interest ||
-                    !reflection.difficulty ||
-                    !reflection.again ||
-                    !reflection.note.trim() ||
-                    !selectedNext ||
-                    !nextReason.trim()
-                  }
+                  aria-describedby="reflection-prompt"
+                  disabled={!!reflectionPrompt}
                 >
                   경험 기록하기
                 </button>

@@ -68,30 +68,27 @@ export function AnalyticsSettings({
     setCode(status.participantCode);
   }, [status.participantCode]);
   const busy = status.phase === "loading" || status.phase === "saving";
+  const statusLabel =
+    status.phase === "loading"
+      ? "설정 확인 중"
+      : status.phase === "saving"
+        ? "변경 중"
+        : status.phase === "error"
+          ? "확인 필요"
+          : status.enabled
+            ? "켜짐"
+            : "꺼짐";
   return (
-    <details className="analytics-settings">
-      <summary>체험 개선 참여 · {status.enabled ? "켜짐" : "꺼짐"}</summary>
+    <details className="analytics-settings" aria-busy={busy}>
+      <summary>
+        체험 개선 참여 <span className="analytics-status">{statusLabel}</span>
+      </summary>
       <p>
-        참여는 선택이에요. 시작·실행·도움·회고 저장·비교·다음 활동 선택을 최대
-        30일 기록해요. 코드·질문·회고 원문과 이름은 분석 데이터에 넣지 않아요.
-      </p>
-      <label className="consent-inline">
-        <input
-          type="checkbox"
-          checked={status.enabled}
-          disabled={busy}
-          onChange={(e) =>
-            void client.current?.setConsent(e.target.checked, code)
-          }
-        />{" "}
-        활동 기록으로 서비스 개선에 참여해요.
-      </label>
-      <p>
-        참여를 끄면 분석 기록도 지워요. 체험 코드와 회고는 그대로 이용할 수
-        있어요.
+        원하면 시작·실행·도움 이용·회고 저장·비교·다음 활동 선택을 최대 30일
+        기록해요. 코드·질문·회고 원문과 이름은 분석에 넣지 않아요.
       </p>
       <label className="pilot-code-label">
-        파일럿 참여 번호(안내받은 경우만)
+        파일럿 참여 번호 (안내받은 경우만)
         <select
           value={code ?? ""}
           disabled={busy || status.enabled}
@@ -105,6 +102,23 @@ export function AnalyticsSettings({
           ))}
         </select>
       </label>
+      <p className="analytics-note">
+        번호가 있다면 참여를 켜기 전에 골라주세요.
+      </p>
+      <label className="consent-inline">
+        <input
+          type="checkbox"
+          checked={status.enabled}
+          disabled={busy}
+          onChange={(e) =>
+            void client.current?.setConsent(e.target.checked, code)
+          }
+        />{" "}
+        활동 기록 수집에 동의하고 개선에 참여해요. (선택)
+      </label>
+      <p>
+        꺼도 체험할 수 있어요. 끄면 분석 기록만 지워지고 코드와 회고는 남아요.
+      </p>
       {status.phase === "error" && (
         <button
           className="btn secondary compact"

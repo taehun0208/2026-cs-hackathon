@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   Server,
   ArrowRight,
+  ArrowLeft,
   FlaskConical,
   Check,
 } from "lucide-react";
@@ -518,6 +519,7 @@ const games = [
   {
     role: "프론트엔드",
     name: "작은 화면 수리하기",
+    summary: "큰 글자도 잘리지 않게 버튼 고치기",
     intro: "큰 글자로 바꿔보고, 버튼 이름이 끝까지 보이도록 고쳐봐요.",
     learned:
       "글자 크기가 달라도 내용을 읽고 누를 수 있도록 화면을 다듬는 일이에요.",
@@ -527,6 +529,7 @@ const games = [
   {
     role: "백엔드",
     name: "마지막 표 한 장",
+    summary: "동시 신청에도 표 한 장만 발급하기",
     intro:
       "‘두 사람이 동시에 신청하면?’을 눌러 표가 중복 발급되는 상황부터 봐요.",
     learned:
@@ -537,6 +540,7 @@ const games = [
   {
     role: "데이터 분석",
     name: "실제 방문자 세기",
+    summary: "재입장을 빼고 실제 방문자 세기",
     intro: "같은 사람의 재입장 기록을 빼서 실제 방문자 수를 찾아봐요.",
     learned:
       "기록 수와 사람 수는 다를 수 있어요. 무엇을 한 건으로 셀지 먼저 정하는 일이에요.",
@@ -546,6 +550,7 @@ const games = [
   {
     role: "AI 엔지니어",
     name: "근거를 보고 답하는 봇",
+    summary: "질문에 맞는 공지를 골라 답하기",
     intro: "질문의 ‘이번 주’와 ‘영화제’가 모두 맞는 공지 한 장부터 골라봐요.",
     learned:
       "질문에 맞는 자료를 고르고 그 내용과 답변을 대조해야 엉뚱한 안내를 줄일 수 있어요.",
@@ -555,6 +560,7 @@ const games = [
   {
     role: "보안 엔지니어",
     name: "필요한 문만 열기",
+    summary: "사람마다 필요한 자료만 열어주기",
     intro:
       "먼저 모두에게 행사 일정을 열고, 각자의 업무에 필요한 자료만 더 열어요.",
     learned:
@@ -565,6 +571,7 @@ const games = [
   {
     role: "클라우드/SRE",
     name: "신청 대기 줄 없애기",
+    summary: "서버를 옮겨 바쁜 창구의 대기 줄이기",
     intro: "대기가 남은 창구의 ＋를 눌러 서버를 한 대씩 더 배치해봐요.",
     learned:
       "정해진 자원 안에서 바쁜 곳에 서버를 더 배치하고 대기가 줄었는지 확인하는 일이에요.",
@@ -603,26 +610,40 @@ export default function GameLab() {
       <header className="site-header">
         <div className="nav-inner">
           <Link className="brand" href="/">
-            <FlaskConical /> 해보기
+            <span className="brand-mark">
+              <FlaskConical size={23} />
+            </span>
+            <span>해보기</span>
           </Link>
           <Link className="btn secondary compact" href="/">
-            코드 체험실
+            코드 체험하기
           </Link>
         </div>
       </header>
       <main className={`wrap ${s.main}`}>
         {current && (
           <button className={s.back} onClick={() => choose(null)}>
-            ← 게임 목록
+            <ArrowLeft size={16} /> 직무 목록
           </button>
         )}
-        <small>{current?.role ?? `완료 ${done.length} / 6`}</small>
-        <h1>{current?.name ?? "축제 운영 게임"}</h1>
-        <p className={s.lead}>
-          {current?.intro ??
-            "코드 없이 눌러보고 바꿔보며, 직무마다 하는 일을 하나씩 경험해요."}
-        </p>
-        <AnalyticsSettings analytics={analytics} />
+        <div className={s.heading}>
+          <div>
+            {current && <p className={s.role}>{current.role}</p>}
+            <h1>{current?.name ?? "코드 없이 직무 둘러보기"}</h1>
+            <p className={s.lead}>
+              {current
+                ? won
+                  ? "방금 해본 일이 이 직무에서 어떤 의미인지 살펴봐요."
+                  : current.intro
+                : "교내 축제를 운영하며, 여섯 직무가 하는 일을 가볍게 경험해요."}
+            </p>
+          </div>
+          {!current && done.length > 0 && (
+            <p className={s.progress} role="status">
+              <Check size={16} /> {done.length}개 직무를 해봤어요
+            </p>
+          )}
+        </div>
         {!current && (
           <>
             <div className={s.catalog}>
@@ -632,10 +653,20 @@ export default function GameLab() {
                   aria-label={`${g.role} 게임 시작`}
                   onClick={() => choose(i)}
                 >
-                  <g.icon />
-                  <small>{g.role}</small>
+                  <span className={s.cardIcon} aria-hidden="true">
+                    <g.icon size={25} strokeWidth={1.7} />
+                  </span>
+                  <span className={s.cardRole}>{g.role}</span>
                   <strong>{g.name}</strong>
-                  <span>{done.includes(i) ? "다시 해보기" : "시작하기"} →</span>
+                  <span className={s.cardDescription}>{g.summary}</span>
+                  <span className={s.cardAction}>
+                    {done.includes(i) ? "다시 해보기" : "해보기"}
+                    {done.includes(i) ? (
+                      <Check size={16} />
+                    ) : (
+                      <ArrowRight size={16} />
+                    )}
+                  </span>
                 </button>
               ))}
             </div>
@@ -667,8 +698,10 @@ export default function GameLab() {
         )}
         {won && current && (
           <section className={s.complete} role="status">
-            <Check size={28} />
-            <h2>직접 해봤어요!</h2>
+            <span className={s.completeIcon} aria-hidden="true">
+              <Check size={27} />
+            </span>
+            <h2>작은 업무 하나를 해봤어요</h2>
             <p>{current.learned}</p>
             <div className={s.keys}>
               <button className="btn secondary" onClick={() => choose(game)}>
@@ -680,6 +713,9 @@ export default function GameLab() {
             </div>
           </section>
         )}
+        <section className={s.preferences} aria-label="체험 개선 설정">
+          <AnalyticsSettings analytics={analytics} />
+        </section>
       </main>
     </>
   );
