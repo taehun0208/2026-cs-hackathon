@@ -101,3 +101,67 @@ test("home shows the time of the started mission rather than the newest shorter 
   assert.ok(card);
   assert.match(card.textContent, new RegExp(`약 ${pinned.time}`));
 });
+
+test("journal guidance leads to an available reflection only after the current user edit has run", async (t) => {
+  const mission = missionById("frontend");
+  const f = await clientHarness(t, {
+    state: {
+      version: 1,
+      progress: { frontend: initialProgress(mission) },
+    },
+  });
+  const document = f.dom.window.document;
+  const editor = () =>
+    document.querySelector('textarea[aria-label="미션 코드 편집기"]');
+  const checkGuidance = async (canReflect) => {
+    await f.click("나의 기록");
+    const card = document.querySelector(".record-card");
+    assert.ok(card);
+    assert.match(
+      card.textContent,
+      canReflect
+        ? /회고를 남기면 완료 기록이 돼요/
+        : /코드를 수정하고 실행해보세요/,
+    );
+    await f.click("이어서 하기", card);
+    const record = [...document.querySelectorAll("button")].find(
+      (b) => b.textContent.trim() === "체험 기록",
+    );
+    assert.ok(record);
+    assert.equal(record.disabled, !canReflect);
+  };
+
+  // Running untouched code is exploration, not a user-edited attempt.
+  await f.click("먼저 그대로 실행해보기");
+  await f.finishRun();
+  await checkGuidance(false);
+
+  // An edit does not inherit a prior run's eligibility.
+  await fill(f, editor(), mission.starter + "\n// user edit");
+  await checkGuidance(false);
+  await f.click("코드 실행");
+  await f.finishRun({
+    tests: [{ label: "fixture", passed: false, why: "not yet" }],
+    preview: null,
+  });
+  await checkGuidance(true);
+  await fill(f, editor(), editor().value + "\n// another edit");
+  await checkGuidance(false);
+
+  // Reference output alone must not suggest a reflection, even if it passes.
+  await f.click("참고 풀이 살펴보기");
+  await f.click(
+    "참고 풀이 불러오기",
+    document.querySelector('[role="dialog"]'),
+  );
+  await f.click("코드 실행");
+  await f.finishRun({
+    tests: [{ label: "fixture", passed: true, why: "reference" }],
+    preview: null,
+  });
+  await checkGuidance(false);
+  await fill(f, editor(), editor().value + "\n// changed by the student");
+  await f.click("코드 실행");
+  await f.finishRun();
+  await checkGuidance(true);
+});

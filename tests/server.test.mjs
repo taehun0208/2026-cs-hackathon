@@ -91,3 +91,31 @@ test("successful-save identity renewal retains the owner; deletion rotates it", 
   assert.match(renewed.cookie, /Max-Age=2592000/);
   assert.notEqual(identity(req, true).key, first.key);
 });
+
+test("validation upgrade preserves partial game maps and earlier results without a preview", () => {
+  const stamp = new Date().toISOString(),
+    progress = {
+      version: 1,
+      code: "function example(){}",
+      runs: 1,
+      hintLevel: 0,
+      usedSolution: false,
+      updatedAt: stamp,
+      result: { tests: [] },
+    },
+    game = { version: 1, completedAt: stamp, updatedAt: stamp };
+  for (const games of [{}, { frontend: game }]) {
+    const parsed = stateSchema.parse({
+      version: 1,
+      progress: { frontend: progress },
+      games,
+    });
+    assert.deepEqual(parsed.games, games);
+    assert.deepEqual(parsed.progress.frontend.result, { tests: [] });
+  }
+  assert.equal(
+    stateSchema.safeParse({ version: 1, progress: {}, games: { other: game } })
+      .success,
+    false,
+  );
+});

@@ -1808,7 +1808,7 @@ export default function Lab({
                       <h3>{m.action}</h3>
                       <p>
                         실행 {p.runs}회 ·{" "}
-                        {p.runs
+                        {canRecordAttempt(p)
                           ? "회고를 남기면 완료 기록이 돼요."
                           : "코드를 수정하고 실행해보세요."}
                       </p>

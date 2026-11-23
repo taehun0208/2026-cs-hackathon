@@ -13,7 +13,7 @@ const test = z.object({
 });
 const runResult = z.object({
   tests: z.array(test).max(5),
-  preview: z.unknown(),
+  preview: z.unknown().optional(),
   error: z.string().max(2000).optional(),
 });
 const execution = z.object({
@@ -111,7 +111,7 @@ export const stateSchema = z
   .object({
     version: z.literal(1),
     games: z
-      .record(
+      .partialRecord(
         track,
         z.object({
           version: z.literal(1),
@@ -221,8 +221,39 @@ export function identity(req: Request, rotate = false, renew = false) {
   };
 }
 export async function readBody(req: Request, limit = 100000) {
-  const raw = await req.text();
-  if (raw.length > limit)
-    throw new Error("입력이 너무 길어요. 코드를 줄여주세요.");
-  return JSON.parse(raw);
+  const tooLarge = () => new Error("입력이 너무 길어요. 코드를 줄여주세요.");
+  // Preserve the existing UTF-16 character limit for Korean/code input, while
+  // bounding bytes before decoding. Content-Length is only an early check;
+  // missing or understated values never replace the streamed limits.
+  const maxBytes = limit * 4;
+  const declared = req.headers.get("Content-Length");
+  if (declared && /^\d+$/.test(declared) && Number(declared) > maxBytes) {
+    void req.body?.cancel().catch(() => {});
+    throw tooLarge();
+  }
+  if (!req.body) return JSON.parse("");
+  const reader = req.body.getReader();
+  const decoder = new TextDecoder();
+  let raw = "",
+    bytes = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > maxBytes) throw tooLarge();
+      raw += decoder.decode(value, { stream: true });
+      if (raw.length > limit) throw tooLarge();
+    }
+    raw += decoder.decode();
+    if (raw.length > limit) throw tooLarge();
+    return JSON.parse(raw);
+  } catch (error) {
+    // Cancellation itself may be delayed by the source; do not keep an API
+    // handler waiting after a limit/parse failure. Always handle rejection.
+    void reader.cancel().catch(() => {});
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
 }
