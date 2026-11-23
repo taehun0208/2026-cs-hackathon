@@ -95,9 +95,11 @@ test("home shows the time of the started mission rather than the newest shorter 
     url: "http://localhost/",
     state: { version: 1, progress: { frontend: initialProgress(pinned) } },
   });
-  const card = f.dom.window.document.querySelector(
+  const action = f.dom.window.document.querySelector(
     '[aria-label="프론트엔드 이어서 해보기"]',
   );
+  assert.ok(action);
+  const card = action.closest("article");
   assert.ok(card);
   assert.match(card.textContent, new RegExp(`약 ${pinned.time}`));
 });
