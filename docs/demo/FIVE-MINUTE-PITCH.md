@@ -4,9 +4,9 @@
 
 기존 [2분 시연 대본](DEMO-SCRIPT.md)의 준비·실패 대체 경로와 [담당자 양식](TEAM-ROLES.csv)을 함께 사용합니다. 담당자는 전원 미정이며 학생 3명의 실제 결과는 아직 없습니다.
 
-## 1. 해보기 · 15초
+## 1. COMPFit · 15초
 
-안녕하세요. 기초 문법을 배운 컴퓨터학부 학생이 작은 개발 업무를 직접 해보고, 다음에 배울 일을 고르는 서비스 해보기입니다.
+안녕하세요. 기초 문법을 배운 컴퓨터학부 학생이 작은 개발 업무를 직접 해보고, 다음에 배울 일을 고르는 서비스 COMPFit입니다.
 
 발표자 참고: 0:00–0:15. 인사 뒤 학생 문제로 바로 이어갑니다. 실제 팀원 담당은 전원 미정입니다.
 
@@ -60,6 +60,6 @@ AI 코치는 공식 과제와 확인 항목을 도구로 읽고 질문에 맞는
 
 ## 10. 다음에 배울 일을 직접 고를 수 있도록 · 15초
 
-해보기는 짧은 체험으로 적성을 결론내리지 않습니다. 내가 해본 일과 느낀 점을 바탕으로 다음에 배울 일을 스스로 고를 수 있도록 돕겠습니다. 감사합니다.
+COMPFit은 짧은 체험으로 적성을 결론내리지 않습니다. 내가 해본 일과 느낀 점을 바탕으로 다음에 배울 일을 스스로 고를 수 있도록 돕겠습니다. 감사합니다.
 
-발표자 참고: 4:45–5:00. 시간은300초 구성 계획이며 실측 리허설은 별도입니다. 디자인 참고: https://tossmini-docs.toss.im/tds-mobile/foundation/typography/ , https://toss.im/tossfeed/article/beginning-of-tps , https://toss.tech/article/toss-design-system . 정보 위계·가독성·여백을 참고했으며 해보기의 Pretendard와 파랑을 유지합니다.
+발표자 참고: 4:45–5:00. 시간은300초 구성 계획이며 실측 리허설은 별도입니다. 디자인 참고: https://tossmini-docs.toss.im/tds-mobile/foundation/typography/ , https://toss.im/tossfeed/article/beginning-of-tps , https://toss.tech/article/toss-design-system . 정보 위계·가독성·여백을 참고했으며 COMPFit의 Pretendard와 파랑을 유지합니다.

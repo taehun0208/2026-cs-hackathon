@@ -5,7 +5,7 @@ import {
   prepilotAssignments,
   trackNames,
 } from "../../lib/pilot-plan";
-export const metadata = { title: "학생 파일럿 안내 | 해보기" };
+export const metadata = { title: "학생 파일럿 안내 | COMPFit" };
 export default function Pilot() {
   return (
     <main className="wrap pilot-page">

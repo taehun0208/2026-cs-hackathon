@@ -11,8 +11,8 @@ expected = int(sys.argv[3]) if len(sys.argv) > 3 else 7
 if len(slides) != expected:
     raise ValueError(f'Expected {expected} inspected slide renders')
 pdf = canvas.Canvas(str(target), pagesize=(960, 540), pageCompression=1)
-pdf.setTitle('해보기 2026 컴학 해커톤 발표')
-pdf.setAuthor('해보기 팀')
+pdf.setTitle('COMPFit 2026 컴학 해커톤 발표')
+pdf.setAuthor('COMPFit 팀')
 for slide in slides:
     pdf.drawImage(ImageReader(str(slide)), 0, 0, width=960, height=540)
     pdf.showPage()

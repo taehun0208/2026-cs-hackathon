@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { BrandText } from "../brand";
 import { useStoredLab } from "../use-stored-lab";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -193,11 +194,11 @@ export default function GameLab({ initialTrack }: { initialTrack?: TrackId }) {
     <>
       <header className="site-header game-header">
         <div className="nav-inner">
-          <Link className="brand" href="/">
+          <Link className="brand" href="/" aria-label="COMPFit 홈">
             <span className="brand-mark">
               <FlaskConical size={23} />
             </span>
-            <span>해보기</span>
+            <BrandText />
           </Link>
           <nav aria-label="주 메뉴">
             <Link href="/">체험실</Link>
