@@ -2,14 +2,7 @@
 
 import Link from "next/link";
 import { useStoredLab } from "../use-stored-lab";
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   LayoutTemplate,
   Ticket,
@@ -22,493 +15,13 @@ import {
   FlaskConical,
   Check,
 } from "lucide-react";
-import {
-  people,
-  serviceSteps,
-  backendState,
-  advanceBackend,
-  backendFeedback,
-  entryNames,
-  dataFeedback,
-  notices,
-  aiFeedback,
-  accessPeople,
-  accessFiles,
-  accessNotes,
-  permittedKeys,
-  securityFeedback,
-  serviceNames,
-  demands,
-  cloudFeedback,
-  frontendFeedback,
-} from "../../lib/game-rules";
 import s from "./games.module.css";
 import { AnalyticsSettings, useAnalytics } from "../analytics-settings";
 import { GAME_ANALYTICS_VERSION } from "../../lib/analytics-schema";
 import type { TrackId } from "../../lib/missions";
-const GameCheckContext = createContext<(passed: boolean) => void>(() => {});
+import { GameCheckContext } from "./shared";
+import { AI, Backend, Cloud, Data, Frontend, Security } from "./plays";
 
-type PlayProps = { finish: () => void };
-type Step = { label: string; done: boolean };
-function Steps({ items }: { items: Step[] }) {
-  return (
-    <ol className={s.steps} aria-label="해볼 순서">
-      {items.map((item, i) => (
-        <li key={item.label} className={item.done ? s.done : ""}>
-          <span aria-label={item.done ? "확인됨" : `${i + 1}단계`}>
-            {item.done ? <Check size={14} /> : i + 1}
-          </span>
-          {item.label}
-        </li>
-      ))}
-    </ol>
-  );
-}
-function Checkpoint({ error, finish }: PlayProps & { error: string }) {
-  const record = useContext(GameCheckContext);
-  const [checked, setChecked] = useState(false);
-  return (
-    <div className={s.check}>
-      <button
-        className="btn primary"
-        onClick={() => {
-          setChecked(true);
-          record(!error);
-          if (!error) finish();
-        }}
-      >
-        결과 확인 <ArrowRight size={16} />
-      </button>
-      {checked && error && <p role="status">{error}</p>}
-    </div>
-  );
-}
-function Board({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className={s.board} aria-label={title}>
-      <h2>{title}</h2>
-      {children}
-    </section>
-  );
-}
-function Frontend({ finish }: PlayProps) {
-  const [width, setWidth] = useState(70),
-    [wrap, setWrap] = useState(false),
-    [zoom, setZoom] = useState(false);
-  return (
-    <>
-      <Board title="축제 신청 화면">
-        <div className={s.phone}>
-          <small>내 신청 내역</small>
-          <h3>야외 영화제</h3>
-          <p>금요일 저녁 7시</p>
-          <div className={s.buttonArea}>
-            <span
-              className={s.sample}
-              style={{
-                width,
-                fontSize: zoom ? 28 : 14,
-                whiteSpace: wrap ? "normal" : "nowrap",
-              }}
-            >
-              영화제 신청 취소
-            </span>
-          </div>
-          <small>점선 안의 너비는 120px예요.</small>
-        </div>
-      </Board>
-      <section className={s.tools}>
-        <h2>이렇게 해봐요</h2>
-        <Steps
-          items={[
-            { label: "큰 글자로 잘리는 부분 확인", done: zoom },
-            { label: "너비를 120px 이하로 맞추기", done: width <= 120 },
-            { label: "줄바꿈을 켜서 이름 전부 보이기", done: wrap },
-          ]}
-        />
-        <label className={s.option}>
-          <input
-            type="checkbox"
-            checked={zoom}
-            onChange={(e) => setZoom(e.target.checked)}
-          />{" "}
-          큰 글자로 확인
-        </label>
-        <label>
-          버튼 너비 · {width}px
-          <input
-            type="range"
-            min="55"
-            max="200"
-            value={width}
-            onChange={(e) => setWidth(+e.target.value)}
-          />
-        </label>
-        <button onClick={() => setWidth(120)}>120px로 맞추기</button>
-        <label className={s.option}>
-          <input
-            type="checkbox"
-            checked={wrap}
-            onChange={(e) => setWrap(e.target.checked)}
-          />{" "}
-          줄바꿈 허용
-        </label>
-        <Checkpoint
-          error={frontendFeedback(width, wrap, zoom)}
-          finish={finish}
-        />
-      </section>
-    </>
-  );
-}
-function Backend({ finish }: PlayProps) {
-  const [locked, setLocked] = useState(false),
-    [turns, setTurns] = useState<number[]>([]);
-  const [observed, setObserved] = useState(false);
-  const { progress, allowed, tickets, seats, busy } = backendState(turns);
-  const oversold = tickets.filter(Boolean).length > 1;
-  return (
-    <>
-      <Board title={`접수 창구 · 남은 자리 ${seats}개`}>
-        <p className={s.readout}>
-          처리 {turns.length} / 6단계 · 발급한 표{" "}
-          {tickets.filter(Boolean).length}장
-        </p>
-        {people.map((name, i) => (
-          <div className={s.row} key={name}>
-            <Ticket size={19} />
-            <strong>{name}</strong>
-            <span>
-              {tickets[i]
-                ? "표 받음"
-                : progress[i] && !allowed[i]
-                  ? "마감"
-                  : "대기 중"}
-            </span>
-            <button
-              aria-label={`${name} ${serviceSteps[progress[i]] ?? "처리 끝"}`}
-              disabled={
-                progress[i] === 3 || (locked && busy >= 0 && busy !== i)
-              }
-              onClick={() => setTurns(advanceBackend(turns, i, locked))}
-            >
-              {serviceSteps[progress[i]] ?? "처리 끝"}
-            </button>
-          </div>
-        ))}
-        <p className={s.readout}>
-          {locked && busy >= 0
-            ? `${people[busy]}의 처리가 끝날 때까지 다른 창구는 기다려요.`
-            : "자리를 확인한 순간에는 아직 표가 발급되지 않아요."}
-        </p>
-        {oversold && (
-          <p className={s.warning} role="status">
-            표 한 장인데 두 사람이 표를 받았어요.
-          </p>
-        )}
-        <details>
-          <summary>지금까지 처리한 순서</summary>
-          <p>
-            {turns
-              .map(
-                (who, i) =>
-                  `${people[who]}(${serviceSteps[turns.slice(0, i).filter((v) => v === who).length]})`,
-              )
-              .join(" → ") || "시작 전"}
-          </p>
-        </details>
-      </Board>
-      <section className={s.tools}>
-        <h2>이렇게 해봐요</h2>
-        <Steps
-          items={[
-            { label: "두 신청이 겹치는 상황 보기", done: observed },
-            { label: "한 사람씩 처리하며 다시 시작", done: locked },
-            {
-              label: "두 사람의 신청을 끝까지 처리",
-              done: locked && turns.length === 6,
-            },
-          ]}
-        />
-        <button
-          onClick={() => {
-            setObserved(true);
-            setLocked(false);
-            setTurns([0, 1, 0, 1, 0, 1]);
-          }}
-        >
-          두 사람이 동시에 신청하면?
-        </button>
-        <button
-          disabled={!observed}
-          onClick={() => {
-            setLocked(true);
-            setTurns([]);
-          }}
-        >
-          한 사람씩 처리하며 다시 시작
-        </button>
-        <p className={s.tip}>
-          다시 시작한 뒤 민지 창구 버튼을 세 번, 준호 창구 버튼을 세 번
-          눌러보세요. 반대 순서도 괜찮아요.
-        </p>
-        <Checkpoint
-          error={
-            !observed
-              ? "‘두 사람이 동시에 신청하면?’을 먼저 눌러보세요."
-              : backendFeedback(turns, locked)
-          }
-          finish={finish}
-        />
-      </section>
-    </>
-  );
-}
-function Data({ finish }: PlayProps) {
-  const [keep, setKeep] = useState(entryNames.map(() => true));
-  const count = keep.filter(Boolean).length;
-  return (
-    <>
-      <Board title="입장 기록">
-        <p className={s.readout}>체크한 기록만 방문자 수에 넣어요.</p>
-        {entryNames.map((name, i) => (
-          <label className={`${s.row} ${s.option}`} key={i}>
-            <input
-              aria-label={`${name} 10:0${i} 기록 포함`}
-              type="checkbox"
-              checked={keep[i]}
-              onChange={() => setKeep(keep.map((v, j) => (j === i ? !v : v)))}
-            />
-            <time>10:0{i}</time>
-            <strong>{name}</strong>
-            <span>{keep[i] ? "집계" : "제외"}</span>
-          </label>
-        ))}
-        <output className={s.number} aria-live="polite">
-          현재 집계 {count}명
-        </output>
-      </Board>
-      <section className={s.tools}>
-        <h2>이렇게 해봐요</h2>
-        <Steps
-          items={[
-            { label: "민지의 첫 입장만 남기기", done: keep[0] && !keep[2] },
-            { label: "준호의 첫 입장만 남기기", done: keep[1] && !keep[4] },
-            { label: "한 번 입장한 서연은 그대로 두기", done: keep[3] },
-          ]}
-        />
-        <p className={s.tip}>
-          같은 이름이 두 번 나오면 뒤의 체크를 꺼보세요. 기록은 5건이지만 실제
-          사람은 3명이에요.
-        </p>
-        <Checkpoint error={dataFeedback(keep)} finish={finish} />
-      </section>
-    </>
-  );
-}
-function AI({ finish }: PlayProps) {
-  const [source, setSource] = useState<number | null>(null),
-    [time, setTime] = useState(""),
-    [place, setPlace] = useState("");
-  return (
-    <>
-      <Board title="안내 봇의 공지 서랍">
-        <p className={s.bubble}>“이번 주 영화제는 언제 어디서 해?”</p>
-        {notices.map((n, i) => (
-          <button
-            className={s.notice}
-            key={n.title}
-            aria-pressed={source === i}
-            onClick={() => {
-              setSource(i);
-              setTime("");
-              setPlace("");
-            }}
-          >
-            <strong>{n.title}</strong>
-            <span>
-              {n.time} · {n.place}
-            </span>
-          </button>
-        ))}
-        <output className={s.answer} aria-live="polite">
-          {time || "[시간]"}에 {place || "[장소]"}에서 열려요.
-        </output>
-      </Board>
-      <section className={s.tools}>
-        <h2>이렇게 해봐요</h2>
-        <Steps
-          items={[
-            { label: "이번 주 영화제 공지를 고르기", done: source === 1 },
-            {
-              label: "그 공지에 적힌 시간 선택",
-              done: source === 1 && time === notices[1].time,
-            },
-            {
-              label: "그 공지에 적힌 장소 선택",
-              done: source === 1 && place === notices[1].place,
-            },
-          ]}
-        />
-        <p className={s.tip}>
-          {source === null
-            ? "공지 중 한 장을 먼저 눌러주세요."
-            : `지금 참고하는 공지: ${notices[source].title}`}
-        </p>
-        <label>
-          시간
-          <select
-            value={time}
-            disabled={source === null}
-            onChange={(e) => setTime(e.target.value)}
-          >
-            <option value="">시간 고르기</option>
-            {["오후 5시", "오후 6시", "오후 7시"].map((v) => (
-              <option key={v}>{v}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          장소
-          <select
-            value={place}
-            disabled={source === null}
-            onChange={(e) => setPlace(e.target.value)}
-          >
-            <option value="">장소 고르기</option>
-            {["강당", "운동장", "학생회관"].map((v) => (
-              <option key={v}>{v}</option>
-            ))}
-          </select>
-        </label>
-        <Checkpoint error={aiFeedback(source, time, place)} finish={finish} />
-      </section>
-    </>
-  );
-}
-function Security({ finish }: PlayProps) {
-  const [keys, setKeys] = useState<number[]>([]);
-  return (
-    <>
-      <Board title="자료실 출입문">
-        <p className={s.readout}>버튼을 누르면 열리고, 다시 누르면 잠겨요.</p>
-        {accessPeople.map((person, i) => (
-          <section className={s.accessPerson} key={person}>
-            <h3>{person}</h3>
-            <p>{accessNotes[i]}</p>
-            <div className={s.keys}>
-              {accessFiles.map((file, j) => {
-                const id = i * 3 + j,
-                  open = keys.includes(id);
-                return (
-                  <button
-                    key={file}
-                    aria-label={`${person} ${file}`}
-                    aria-pressed={open}
-                    onClick={() =>
-                      setKeys(
-                        open ? keys.filter((v) => v !== id) : [...keys, id],
-                      )
-                    }
-                  >
-                    {open ? "열림" : "잠김"} · {file}
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        ))}
-      </Board>
-      <section className={s.tools}>
-        <h2>이렇게 해봐요</h2>
-        <Steps
-          items={accessPeople.map((person, i) => ({
-            label: `${person}에게 필요한 자료만 열기`,
-            done: accessFiles.every(
-              (_, j) =>
-                keys.includes(i * 3 + j) === permittedKeys.includes(i * 3 + j),
-            ),
-          }))}
-        />
-        <p className={s.tip}>
-          먼저 세 사람의 ‘행사 일정’을 모두 열어보세요. 이어 참가자의 ‘내
-          입장권’, 접수 담당자의 ‘전체 명단’을 열어요.
-        </p>
-        <Checkpoint error={securityFeedback(keys)} finish={finish} />
-      </section>
-    </>
-  );
-}
-function Cloud({ finish }: PlayProps) {
-  const [units, setUnits] = useState([1, 1, 1]);
-  const spare = 6 - units.reduce((a, b) => a + b, 0);
-  return (
-    <>
-      <Board title="축제 서버 관제실">
-        {serviceNames.map((name, i) => {
-          const capacity = units[i] * 8,
-            waiting = Math.max(0, demands[i] - capacity);
-          return (
-            <section className={s.service} key={name}>
-              <h3>{name}</h3>
-              <p>
-                분당 요청 {demands[i]}건 · 현재 처리 가능 {capacity}건
-              </p>
-              <div className={s.row}>
-                <progress
-                  aria-label={`${name} 처리된 요청`}
-                  value={demands[i] - waiting}
-                  max={demands[i]}
-                />
-                <span className={waiting ? s.waiting : s.clear}>
-                  대기 {waiting}건
-                </span>
-              </div>
-              <div className={s.keys}>
-                <button
-                  aria-label={`${name} 서버 줄이기`}
-                  disabled={units[i] === 0}
-                  onClick={() =>
-                    setUnits(units.map((v, j) => v - Number(i === j)))
-                  }
-                >
-                  −
-                </button>
-                <span>서버 {units[i]}대</span>
-                <button
-                  aria-label={`${name} 서버 늘리기`}
-                  disabled={spare === 0}
-                  onClick={() =>
-                    setUnits(units.map((v, j) => v + Number(i === j)))
-                  }
-                >
-                  ＋
-                </button>
-              </div>
-            </section>
-          );
-        })}
-      </Board>
-      <section className={s.tools}>
-        <h2>이렇게 해봐요</h2>
-        <Steps
-          items={serviceNames.map((name, i) => ({
-            label: `${name} 창구 대기 없애기`,
-            done: units[i] * 8 >= demands[i],
-          }))}
-        />
-        <p className={s.tip}>
-          서버 1대는 분당 8건을 처리해요. 대기가 남은 창구의 ＋를 누르면 바로
-          줄어드는 걸 볼 수 있어요. 잘못 옮겼다면 −로 돌려받아요.
-        </p>
-        <output className={s.number} aria-live="polite">
-          더 배치할 수 있는 서버 {spare}대
-        </output>
-        <Checkpoint error={cloudFeedback(units)} finish={finish} />
-      </section>
-    </>
-  );
-}
 const games = [
   {
     id: "frontend",
@@ -516,37 +29,39 @@ const games = [
     next: "신청 화면이 열렸어요. 곧 신청이 몰려와요.",
     role: "프론트엔드",
     name: "작은 화면 수리하기",
-    summary: "큰 글자도 잘리지 않게 버튼 고치기",
-    intro: "큰 글자로 바꿔보고, 버튼 이름이 끝까지 보이도록 고쳐봐요.",
+    summary: "여러 상황에서 버튼 이름이 안 잘리게 하기",
+    intro:
+      "글자 크기와 칸 너비가 달라도 버튼 이름이 끝까지 보이도록 속성을 골라봐요.",
     learned:
-      "글자 크기가 달라도 내용을 읽고 누를 수 있도록 화면을 다듬는 일이에요.",
+      "한 화면만이 아니라 글자 크기, 칸 너비, 이름 길이가 달라져도 내용을 읽고 누를 수 있게 만드는 일이에요.",
     icon: LayoutTemplate,
     play: Frontend,
   },
   {
     id: "backend",
     scene: "신청 오픈",
-    next: "표 처리는 안전해졌어요. 그런데 신청이 계속 몰려와요.",
+    next: "표 처리는 안전해졌어요. 이제 신청 서비스의 새 버전을 배포할 시간이에요.",
     role: "백엔드",
     name: "마지막 표 한 장",
-    summary: "동시 신청에도 표 한 장만 발급하기",
+    summary: "표가 겹치는 순서를 찾고 고치기",
     intro:
-      "‘두 사람이 동시에 신청하면?’을 눌러 표가 중복 발급되는 상황부터 봐요.",
+      "표가 두 장 발급되는 순서를 직접 찾아보고, 어떻게 고쳐야 모든 순서에서 안전한지 확인해요.",
     learned:
-      "확인부터 발급까지 한 번에 처리하면 동시에 신청해도 마지막 한 자리를 지킬 수 있어요.",
+      "자리 확인과 차감이 따로 놀면 동시에 신청할 때 표가 겹쳐요. 한 사람씩 처리해 한 덩어리로 묶어야 마지막 한 자리를 지킬 수 있어요.",
     icon: Ticket,
     play: Backend,
   },
   {
     id: "cloud",
-    scene: "신청 폭주",
-    next: "서비스가 버텼어요. 이제 행사 전날 정리가 남았어요.",
+    scene: "새 버전 배포",
+    next: "배포 판단이 끝났어요. 이제 행사 전날 정리가 남았어요.",
     role: "클라우드/SRE",
-    name: "신청 대기 줄 없애기",
-    summary: "서버를 옮겨 바쁜 창구의 대기 줄이기",
-    intro: "대기가 남은 창구의 ＋를 눌러 서버를 한 대씩 더 배치해봐요.",
+    name: "새 버전, 계속 배포할까?",
+    summary: "지표를 보고 기다릴지 되돌릴지 정하기",
+    intro:
+      "새 버전을 일부 사용자에게 먼저 공개했어요. 오류율과 응답 시간을 보고 기다릴지, 되돌릴지, 계속할지 정해봐요.",
     learned:
-      "정해진 자원 안에서 바쁜 곳에 서버를 더 배치하고 대기가 줄었는지 확인하는 일이에요.",
+      "숫자를 보고 기다릴지, 되돌릴지, 계속할지 정하는 일이에요. 관측이 충분한지부터 확인해요.",
     icon: Server,
     play: Cloud,
   },
@@ -555,12 +70,12 @@ const games = [
     scene: "행사 전날",
     next: "권한 정리가 끝났어요. 행사 당일 문의가 들어와요.",
     role: "보안 엔지니어",
-    name: "필요한 문만 열기",
-    summary: "사람마다 필요한 자료만 열어주기",
+    name: "이 요청, 열어줄까?",
+    summary: "요청마다 허용·거부를 판정하기",
     intro:
-      "먼저 모두에게 행사 일정을 열고, 각자의 업무에 필요한 자료만 더 열어요.",
+      "신청 내역을 보려는 요청이 들어와요. 허용할지, 로그인을 요구할지, 막을지 판정해봐요.",
     learned:
-      "사람마다 필요한 자료만 볼 수 있게 정하는 일이에요. 넓은 권한이 항상 좋은 건 아니에요.",
+      "요청마다 로그인과 소유자를 확인해 허용과 거부를 정하는 일이에요. 관리자도 모든 걸 할 수 있는 건 아니에요.",
     icon: ShieldCheck,
     play: Security,
   },
@@ -569,11 +84,12 @@ const games = [
     scene: "행사 당일 문의",
     next: "안내 봇이 정확히 답해요. 입장이 시작돼요.",
     role: "AI 엔지니어",
-    name: "근거를 보고 답하는 봇",
-    summary: "질문에 맞는 공지를 골라 답하기",
-    intro: "질문의 ‘이번 주’와 ‘영화제’가 모두 맞는 공지 한 장부터 골라봐요.",
+    name: "봇 답변 채점하기",
+    summary: "봇 답변이 근거와 맞는지 채점하기",
+    intro:
+      "안내 봇의 답변이 찾아온 공지와 맞는지 채점해봐요. 근거에 없는 내용을 지어낸 답도 섞여 있어요.",
     learned:
-      "질문에 맞는 자료를 고르고 그 내용과 답변을 대조해야 엉뚱한 안내를 줄일 수 있어요.",
+      "답변이 근거와 맞는지 확인하고, 근거가 없으면 모른다고 말하게 만드는 일이에요.",
     icon: BrainCircuit,
     play: AI,
   },
@@ -582,11 +98,12 @@ const games = [
     scene: "입장 후 정산",
     next: "행사가 끝났어요. 오늘 하루를 함께 운영했어요.",
     role: "데이터 분석",
-    name: "실제 방문자 세기",
-    summary: "재입장을 빼고 실제 방문자 세기",
-    intro: "같은 사람의 재입장 기록을 빼서 실제 방문자 수를 찾아봐요.",
+    name: "무엇을 셀까?",
+    summary: "같은 기록도 질문에 따라 다르게 세기",
+    intro:
+      "같은 입장 기록으로 방문자 수, 게이트 통과 횟수, 재입장 횟수를 각각 구해봐요.",
     learned:
-      "기록 수와 사람 수는 다를 수 있어요. 무엇을 한 건으로 셀지 먼저 정하는 일이에요.",
+      "같은 기록도 질문에 따라 세는 기준이 달라져요. 무엇을 한 건으로 셀지 먼저 정하는 일이에요.",
     icon: ChartColumn,
     play: Data,
   },
