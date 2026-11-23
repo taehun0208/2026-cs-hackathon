@@ -378,7 +378,9 @@ export function createPersistence(options: {
       selectedKey = draft?.id ? `${PENDING_PREFIX}${draft.id}` : null;
       forcedChanges.clear();
       for (const key of draft?.forcedChanges ?? []) forcedChanges.add(key);
-      unconfirmedWrite = forcedChanges.size > 0;
+      // A dirty draft can belong to a closed tab whose request is still running.
+      // A fresh controller cannot know whether that request reached the server.
+      unconfirmedWrite = !!draft?.dirty;
       reportPending();
       if (draft) {
         state = draft.state;

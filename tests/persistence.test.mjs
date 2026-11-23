@@ -171,69 +171,77 @@ test("reverting consent during an in-flight save automatically saves the latest 
   assert.equal(f.status.phase, "saved");
   assert.equal(readDraft(f.memory.get(DRAFT_KEY)).dirty, false);
 });
-test("a reload keeps a reverted consent choice when an older tab's save commits after the load", async (t) => {
-  let stored = { ...work("saved"), profile: { aiConsent: false } };
-  let revision = Date.parse(receipt.savedAt),
-    posts = 0;
-  const entered = deferred(),
-    gate = deferred();
-  const server = async (o) => {
-    if (o.method === "GET")
-      return Response.json({ state: stored, ...storageDates(revision) });
-    if (++posts === 1) {
-      entered.resolve();
-      await gate.promise;
-    }
-    if (o.headers["X-Lab-Revision"] !== storageDates(revision).savedAt)
-      return Response.json(
-        { code: "RECORD_CONFLICT", state: stored, ...storageDates(revision) },
-        { status: 409 },
-      );
-    stored = JSON.parse(o.body);
-    return Response.json(storageDates(++revision));
-  };
-  const old = fixture(server, null, { timeoutMs: 1000 });
-  t.after(() => old.controller.dispose());
-  await old.controller.load();
-  const before = structuredClone(old.state);
-  old.controller.stage({
-    ...before,
-    profile: { ...before.profile, aiConsent: true },
-  });
-  const oldSave = old.controller.saveNow().catch(() => {});
-  await entered.promise;
-  old.controller.stage(before);
-  old.controller.dispose();
-  let state, status;
-  const fresh = createPersistence({
-    storage: {
-      get length() {
-        return old.memory.size;
+for (const revertAt of ["before reload", "after reload"])
+  test(`a reverted consent choice ${revertAt} survives an older tab's late commit`, async (t) => {
+    let stored = { ...work("saved"), profile: { aiConsent: false } };
+    let revision = Date.parse(receipt.savedAt),
+      posts = 0;
+    const entered = deferred(),
+      gate = deferred();
+    const server = async (o) => {
+      if (o.method === "GET")
+        return Response.json({ state: stored, ...storageDates(revision) });
+      if (++posts === 1) {
+        entered.resolve();
+        await gate.promise;
+      }
+      if (o.headers["X-Lab-Revision"] !== storageDates(revision).savedAt)
+        return Response.json(
+          { code: "RECORD_CONFLICT", state: stored, ...storageDates(revision) },
+          { status: 409 },
+        );
+      stored = JSON.parse(o.body);
+      return Response.json(storageDates(++revision));
+    };
+    const old = fixture(server, null, { timeoutMs: 1000 });
+    t.after(() => old.controller.dispose());
+    await old.controller.load();
+    const before = structuredClone(old.state);
+    old.controller.stage({
+      ...before,
+      profile: { ...before.profile, aiConsent: true },
+    });
+    const oldSave = old.controller.saveNow().catch(() => {});
+    await entered.promise;
+    if (revertAt === "before reload") old.controller.stage(before);
+    old.controller.dispose();
+    let state, status;
+    const fresh = createPersistence({
+      storage: {
+        get length() {
+          return old.memory.size;
+        },
+        key: (i) => [...old.memory.keys()][i] ?? null,
+        getItem: (k) => old.memory.get(k) ?? null,
+        setItem: (k, v) => old.memory.set(k, v),
+        removeItem: (k) => old.memory.delete(k),
       },
-      key: (i) => [...old.memory.keys()][i] ?? null,
-      getItem: (k) => old.memory.get(k) ?? null,
-      setItem: (k, v) => old.memory.set(k, v),
-      removeItem: (k) => old.memory.delete(k),
-    },
-    fetcher: (_, o) => server(o),
-    onState: (s) => (state = s),
-    onStatus: (s) => (status = s),
-    debounceMs: 10000,
-    timeoutMs: 1000,
+      fetcher: (_, o) => server(o),
+      onState: (s) => (state = s),
+      onStatus: (s) => (status = s),
+      debounceMs: 10000,
+      timeoutMs: 1000,
+    });
+    t.after(() => fresh.dispose());
+    await fresh.load();
+    if (revertAt === "after reload") {
+      state = before;
+      fresh.stage(before);
+    }
+    assert.equal(
+      readDraft(old.memory.get(DRAFT_KEY)).state.profile.aiConsent,
+      false,
+    );
+    assert.equal(readDraft(old.memory.get(DRAFT_KEY)).dirty, true);
+    gate.resolve();
+    await oldSave;
+    await assert.rejects(fresh.saveNow());
+    assert.equal(status.phase, "conflict");
+    assert.equal(state.profile.aiConsent, false);
+    await fresh.resolveConflict("local");
+    assert.equal(stored.profile.aiConsent, false);
+    assert.equal(status.phase, "saved");
   });
-  t.after(() => fresh.dispose());
-  await fresh.load();
-  assert.equal(state.profile.aiConsent, false);
-  assert.equal(readDraft(old.memory.get(DRAFT_KEY)).dirty, true);
-  gate.resolve();
-  await oldSave;
-  await assert.rejects(fresh.saveNow());
-  assert.equal(status.phase, "conflict");
-  assert.equal(state.profile.aiConsent, false);
-  await fresh.resolveConflict("local");
-  assert.equal(stored.profile.aiConsent, false);
-  assert.equal(status.phase, "saved");
-});
 test("failed saves preserve the draft and last server receipt; retry persists the latest edit", async () => {
   let fail = true;
   const f = fixture(async (o) =>
