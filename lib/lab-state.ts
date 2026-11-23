@@ -128,7 +128,7 @@ export function currentExecution(
 export function canRecordAttempt(progress: Progress): boolean {
   return currentExecution(progress)?.kind === "edited";
 }
-export function isCompleted(progress: Progress | undefined): boolean {
+function hasEditedReflectionExecution(progress: Progress | undefined): boolean {
   const execution = progress?.reflection?.execution;
   return (
     execution?.kind === "edited" &&
@@ -138,8 +138,21 @@ export function isCompleted(progress: Progress | undefined): boolean {
     !!missionById(execution.missionId, execution.contentVersion)
   );
 }
+export function isCompleted(progress: Progress | undefined): boolean {
+  const reflection = progress?.reflection;
+  return (
+    hasEditedReflectionExecution(progress) &&
+    typeof reflection?.note === "string" &&
+    !!reflection.note.trim() &&
+    [reflection.interest, reflection.difficulty, reflection.again].every(
+      (score) => Number.isInteger(score) && score >= 1 && score <= 5,
+    )
+  );
+}
 export function recordStatus(progress: Progress): string {
   if (isCompleted(progress)) return "체험 완료";
+  if (hasEditedReflectionExecution(progress))
+    return "이전 기록 · 회고 확인 필요";
   if (
     progress.reflection?.execution &&
     !progress.reflection.execution.contentVersion
