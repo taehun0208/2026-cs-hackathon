@@ -1066,13 +1066,12 @@ export default function Lab({
                   const p = state.progress[m.id];
                   const pinnedMission = p ? missionForProgress(m.id, p) : m;
                   return (
-                    <article className={`job-card ${m.color}`} key={m.id}>
-                      <button
-                        className="job-open"
-                        disabled={!ready || (!p && !canStartMission(m.id))}
-                        onClick={() => start(m.id)}
-                        aria-label={`${m.title} ${p ? (isCompleted(p) ? "체험 다시 열기" : "이어서 해보기") : canStartMission(m.id) ? "체험 시작" : "새 체험 준비 중"}`}
-                      >
+                    <article
+                      className={`job-card ${m.color}`}
+                      key={m.id}
+                      aria-labelledby={`job-title-${m.id}`}
+                    >
+                      <div className="job-open">
                         <div className="job-top">
                           <span className="job-icon">
                             <TrackIcon id={m.id} size={25} />
@@ -1089,7 +1088,9 @@ export default function Lab({
                         </div>
                         <div className="job-info">
                           <p className="job-role">{m.title}</p>
-                          <h3>{taskLabels[m.id].title}</h3>
+                          <h3 id={`job-title-${m.id}`}>
+                            {taskLabels[m.id].title}
+                          </h3>
                           <p>{taskLabels[m.id].description}</p>
                           <div className="job-bottom">
                             <span>
@@ -1097,17 +1098,24 @@ export default function Lab({
                                 ? `약 ${pinnedMission.time}`
                                 : "과제 시간 미확인"}
                             </span>
-                            <span className="job-link">
+                            <button
+                              className="job-link job-action"
+                              disabled={
+                                !ready || (!p && !canStartMission(m.id))
+                              }
+                              onClick={() => start(m.id)}
+                              aria-label={`${m.title} ${p ? (isCompleted(p) ? "체험 다시 열기" : "이어서 해보기") : canStartMission(m.id) ? "체험 시작" : "새 체험 준비 중"}`}
+                            >
                               {p
                                 ? isCompleted(p)
                                   ? "다시 열기"
                                   : "이어하기"
                                 : "시작하기"}{" "}
                               <ChevronRight size={16} />
-                            </span>
+                            </button>
                           </div>
                         </div>
-                      </button>
+                      </div>
                     </article>
                   );
                 })}
