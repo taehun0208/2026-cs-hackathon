@@ -197,6 +197,60 @@ const pendingDrafts = (storage) =>
     .filter((key) => key.startsWith(PENDING_PREFIX))
     .map((key) => readDraft(storage.getItem(key)));
 
+for (const timing of ["in flight", "timed out"])
+test(`opening another draft confirms a reverted edit whose request is ${timing}`, async (t) => {
+  const gate = Promise.withResolvers();
+  const entered = Promise.withResolvers();
+  let first = true;
+  const responses = [];
+  const f = await setup(t, {
+    timeoutMs: timing === "timed out" ? 40 : 8000,
+    beforeRequest: async (_, request) => {
+      if (request.method === "POST" && first) {
+        first = false;
+        entered.resolve();
+        await gate.promise;
+      }
+    },
+    onResponse: (response) => responses.push(response.status),
+  });
+  t.after(() => gate.resolve());
+  const a = await f.tab(),
+    b = await f.tab();
+  const original = structuredClone(a.state);
+  a.controller.stage(edit(a.state, "frontend", "older in-flight edit"));
+  const saving = a.controller.saveNow().catch(() => {});
+  await entered.promise;
+  a.controller.stage(original);
+  b.setOffline(true);
+  b.controller.stage(edit(b.state, "backend", "independent closed-tab draft"));
+  b.controller.dispose();
+  assert.ok(readDraft(a.tabStorage.getItem(DRAFT_KEY)).forcedChanges.length);
+
+  if (timing === "timed out")
+    await Promise.all([saving, new Promise((resolve) => setTimeout(resolve, 60))]);
+  const recovering = a.controller.recoverNextDraft();
+  if (timing === "in flight") {
+    await new Promise((resolve) => setImmediate(resolve));
+    gate.resolve();
+  }
+  await recovering;
+  gate.resolve();
+  await saving;
+  await new Promise((resolve) => setImmediate(resolve));
+
+  if (timing === "timed out") assert.equal(responses.at(-1), 409);
+  assert.deepEqual((await f.store.read("guest")).state, original);
+  assert.equal(a.state.progress.frontend.code, original.progress.frontend.code);
+  assert.equal(a.state.progress.backend.code, "independent closed-tab draft");
+  await a.controller.saveNow();
+  assert.equal(
+    (await f.store.read("guest")).state.progress.backend.code,
+    "independent closed-tab draft",
+  );
+  assert.equal(pendingDrafts(f.shared).length, 0);
+});
+
 test("closing an offline tab cannot lose its draft when another tab saves", async (t) => {
   const f = await setup(t),
     a = await f.tab(),

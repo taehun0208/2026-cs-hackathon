@@ -538,7 +538,8 @@ export function createPersistence(options: {
     },
     async recoverNextDraft() {
       if (!active || !status.ready) return;
-      if (fingerprint(state) !== synced) {
+      // A reverted value can still need confirmation against an older POST.
+      if (fingerprint(state) !== synced || forcedChanges.size) {
         try {
           await api.saveNow();
         } catch {
