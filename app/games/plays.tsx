@@ -59,7 +59,9 @@ export function Frontend({ finish }: PlayProps) {
   const buttons = useRef<(HTMLSpanElement | null)[]>([]);
   const cells = useRef<(HTMLDivElement | null)[]>([]);
   useEffect(() => {
-    const measure = () =>
+    let active = true;
+    const measure = () => {
+      if (!active) return;
       setCut(
         scenes.map((_, i) => {
           const b = buttons.current[i],
@@ -73,8 +75,21 @@ export function Frontend({ finish }: PlayProps) {
           );
         }),
       );
+    };
     measure();
     document.fonts?.ready.then(measure);
+    window.addEventListener("resize", measure);
+    const observer = window.ResizeObserver
+      ? new window.ResizeObserver(measure)
+      : null;
+    [...cells.current, ...buttons.current].forEach((element) => {
+      if (element) observer?.observe(element);
+    });
+    return () => {
+      active = false;
+      window.removeEventListener("resize", measure);
+      observer?.disconnect();
+    };
   }, [wrap, fit, auto]);
   const failing = cut.filter(Boolean).length;
   return (
@@ -386,8 +401,38 @@ export const AI = ({ finish }: PlayProps) => (
   <Rounds title="안내 봇 답변 채점표" rounds={aiRounds} finish={finish} />
 );
 export const Security = ({ finish }: PlayProps) => (
-  <Rounds title="신청 내역 접근 요청" rounds={securityRounds} finish={finish} />
+  <Rounds
+    title="신청 내역 접근 요청"
+    rounds={securityRounds}
+    finish={finish}
+    board={
+      <div className={s.rules} aria-label="판정 기준">
+        <h3>이 서비스의 권한 규칙</h3>
+        <ul className={s.facts}>
+          <li>신청 내역을 보려면 로그인이 필요해요.</li>
+          <li>로그인한 사용자는 자신의 신청을 조회·삭제할 수 있어요.</li>
+          <li>관리자는 다른 사람의 신청을 조회만 할 수 있어요.</li>
+        </ul>
+      </div>
+    }
+  />
 );
 export const Cloud = ({ finish }: PlayProps) => (
-  <Rounds title="새 버전 관제 화면" rounds={cloudRounds} finish={finish} />
+  <Rounds
+    title="새 버전 관제 화면"
+    rounds={cloudRounds}
+    finish={finish}
+    board={
+      <div className={s.rules} aria-label="판정 기준">
+        <h3>이 서비스의 배포 기준</h3>
+        <ul className={s.facts}>
+          <li>요청이 100건 미만이면 먼저 더 지켜봐요.</li>
+          <li>
+            100건부터 오류율이 2%를 넘거나 p95 응답이 500ms를 넘으면 되돌려요.
+          </li>
+          <li>두 기준을 모두 지키면 더 많은 사용자에게 공개해요.</li>
+        </ul>
+      </div>
+    }
+  />
 );

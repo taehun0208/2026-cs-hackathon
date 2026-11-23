@@ -134,6 +134,11 @@ export default function GameLab({ initialTrack }: { initialTrack?: TrackId }) {
   const [game, setGame] = useState<number | null>(null),
     [won, setWon] = useState(false),
     [attempt, setAttempt] = useState(0);
+  const screenHeading = useRef<HTMLHeadingElement>(null);
+  const completeHeading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (ready) (won ? completeHeading : screenHeading).current?.focus();
+  }, [ready, game, attempt, won]);
   const done = games.filter((g) => state.games?.[g.id]);
   const nextIndex = games.findIndex((g) => !state.games?.[g.id]);
   const current = game === null ? null : games[game],
@@ -335,7 +340,9 @@ export default function GameLab({ initialTrack }: { initialTrack?: TrackId }) {
         <div className={s.heading}>
           <div>
             {current && <p className={s.role}>{current.role}</p>}
-            <h1>{current?.name ?? "코드 없이 직무 둘러보기"}</h1>
+            <h1 ref={screenHeading} tabIndex={-1}>
+              {current?.name ?? "코드 없이 직무 둘러보기"}
+            </h1>
             <p className={s.lead}>
               {current
                 ? won
@@ -444,7 +451,9 @@ export default function GameLab({ initialTrack }: { initialTrack?: TrackId }) {
             <span className={s.completeIcon} aria-hidden="true">
               <Check size={27} />
             </span>
-            <h2 id="game-complete-title">작은 업무 하나를 해봤어요</h2>
+            <h2 id="game-complete-title" ref={completeHeading} tabIndex={-1}>
+              작은 업무 하나를 해봤어요
+            </h2>
 
             <p>{current.learned}</p>
             <p>{current.next}</p>

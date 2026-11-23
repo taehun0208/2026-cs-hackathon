@@ -546,6 +546,12 @@
   font-size: 15px;
   line-height: 1.7;
 }
+.rules {
+  display: grid;
+  gap: 10px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+}
 .choices {
   display: grid;
   gap: 10px;
