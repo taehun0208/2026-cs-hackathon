@@ -162,6 +162,8 @@ test("deletion in another tab closes the reflection without saving its unsaved d
   });
   assert.equal(document.querySelector('[role="dialog"]'), null);
   assert.equal(document.querySelector("main").hasAttribute("inert"), true);
+  assert.equal(document.querySelector("main").inert, true);
+  assert.equal(document.querySelector("header.site-header").inert, false);
   assert.match(document.body.textContent, /다른 탭에서 기록을 삭제했어요/);
   await f.settle(1000);
   assert.equal(
@@ -170,4 +172,59 @@ test("deletion in another tab closes the reflection without saving its unsaved d
   );
 
   assert.equal(localStorage.getItem(DRAFT_KEY), null);
+});
+
+for (const scenario of [
+  { view: "work", trigger: "처음 코드로 되돌리기" },
+  { view: "journal", trigger: "전체 기록 삭제" },
+]) {
+  test(`canceling the ${scenario.view} confirmation restores background interaction and focus without deleting records`, async (t) => {
+    const f = await clientHarness(t);
+    const document = f.dom.window.document;
+    if (scenario.view === "journal") await f.click("나의 기록");
+    const trigger = [...document.querySelectorAll("button")].find(
+      (button) =>
+        button.textContent.trim() === scenario.trigger ||
+        button.getAttribute("aria-label") === scenario.trigger,
+    );
+    trigger.focus();
+    await f.click(scenario.trigger);
+    const dialog = document.querySelector('[role="dialog"]');
+    const backgrounds = [
+      ...document.querySelectorAll(
+        "header.site-header, main, footer.site-footer",
+      ),
+    ];
+    assert.ok(backgrounds.length >= 2);
+    assert.ok(backgrounds.every((element) => element.inert));
+    assert.equal(document.body.style.overflow, "hidden");
+    assert.equal(document.activeElement, dialog.querySelector("button"));
+    await f.click("취소", dialog);
+    assert.equal(document.querySelector('[role="dialog"]'), null);
+    assert.ok(backgrounds.every((element) => !element.inert));
+    assert.equal(document.body.style.overflow, "");
+    assert.equal(document.activeElement, trigger);
+    assert.equal(
+      f.calls.some((call) => call.method === "DELETE"),
+      false,
+    );
+    assert.ok(f.stored.progress.frontend);
+  });
+}
+
+test("browser history closes a confirmation without leaving the destination inert", async (t) => {
+  const f = await clientHarness(t);
+  const document = f.dom.window.document;
+  await f.click("나의 기록");
+  await f.click("전체 기록 삭제");
+  assert.ok(document.querySelector('[role="dialog"]'));
+  await f.history("back");
+  assert.equal(document.querySelector('[role="dialog"]'), null);
+  assert.equal(document.querySelector("main").classList.contains("work"), true);
+  assert.equal(document.querySelector("main").inert, false);
+  assert.equal(document.querySelector("header.site-header").inert, false);
+  assert.equal(
+    f.calls.some((call) => call.method === "DELETE"),
+    false,
+  );
 });
