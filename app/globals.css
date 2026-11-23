@@ -2305,9 +2305,13 @@ nav > button.active:after {
 }
 .work-journey .current > span {
   background: #dbeafe;
+  color: #1d4ed8;
 }
 .work-journey .done {
   color: var(--teal);
+}
+.work-journey .done > span {
+  color: #0f6b55;
 }
 .work-grid {
   grid-template-columns: 252px minmax(0, 1fr) 292px;
