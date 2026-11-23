@@ -4,6 +4,7 @@ import fs from "node:fs";
 import { summarizeAnalytics } from "../lib/analytics-report.ts";
 import { pilotAssignments } from "../lib/pilot-plan.ts";
 import { missions } from "../lib/missions.ts";
+import { GAME_ANALYTICS_VERSION } from "../lib/analytics-schema.ts";
 const owner = "guest:" + crypto.randomUUID(),
   sessionId = crypto.randomUUID();
 const context = (track) => ({
@@ -56,6 +57,60 @@ test("empty reports never claim target rates and QA and raw credentials stay out
   assert.equal(report.quality.qaExcluded, 1);
   assert.ok(!JSON.stringify(report).includes(owner));
   assert.ok(!JSON.stringify(report).includes(sessionId));
+});
+test("a diagnostic game completed with every answer incorrect still counts as an experience", () => {
+  const c = {
+    ...context("security"),
+    surface: "game",
+    contentVersion: GAME_ANALYTICS_VERSION,
+  };
+  const report = summarizeAnalytics([
+    row("mission_start", { entry: "new" }, c),
+    row("game_check", { passed: false }, c),
+    row("game_check", { passed: false }, c),
+    row("mission_end", { outcome: "completed", elapsedMs: 15000 }, c),
+  ]);
+  assert.equal(report.perRole[0].gameCompleted, 1);
+  assert.equal(report.perRole[0].gameChecks, 2);
+  assert.equal(report.perRole[0].gameRetries, 2);
+  assert.equal(report.perRole[0].unresolved, 0);
+  assert.equal(report.perRole[0].savedReflection, 0);
+  assert.equal(
+    report.codeTargets.firstObservedNewExperienceCompletion.denominator,
+    0,
+  );
+});
+
+test("a game check without an explicit completion is not inferred as a completed experience", () => {
+  const c = {
+    ...context("cloud"),
+    surface: "game",
+    contentVersion: GAME_ANALYTICS_VERSION,
+  };
+  const report = summarizeAnalytics([
+    row("mission_start", { entry: "new" }, c),
+    row("game_check", { passed: true }, c),
+    row("mission_end", { outcome: "left", elapsedMs: 1000 }, c),
+  ]);
+  assert.equal(report.perRole[0].gameCompleted, 0);
+  assert.equal(report.perRole[0].leftWithoutSaved, 1);
+});
+test("retained games from the previous version remain reportable with their original completion rule", () => {
+  for (const passed of [false, true]) {
+    const c = {
+      ...context("cloud"),
+      surface: "game",
+      contentVersion: "games-2026-11-23.1",
+    };
+    const report = summarizeAnalytics([
+      row("mission_start", { entry: "new" }, c),
+      row("game_check", { passed }, c),
+      row("mission_end", { outcome: "completed", elapsedMs: 1000 }, c),
+    ]);
+    assert.equal(report.quality.invalid, 0);
+    assert.equal(report.perRole[0].gameCompleted, passed ? 1 : 0);
+    assert.equal(report.perRole[0].contentVersion, c.contentVersion);
+  }
 });
 test("two edited code roles with acknowledged reflections and an action satisfy the defined coverage, without assuming comparison order", () => {
   const rows = [
