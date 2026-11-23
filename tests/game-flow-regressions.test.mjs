@@ -16,8 +16,13 @@ test("game transitions put keyboard focus on the new screen heading", async (t) 
     "준호 남은 자리 확인",
     "민지 표 발급",
     "준호 표 발급",
-  ])
+  ]) {
+    await f.act(async () => {
+      document.querySelector(`button[aria-label="${step}"]`).focus();
+    });
     await f.click(step);
+  }
+  assert.ok(document.activeElement === document.querySelector(".tools h2"));
   const lock = document.querySelector('input[name="fix"]');
   await f.act(async () => lock.click());
   await f.click("20가지 순서로 시험하기");
@@ -101,7 +106,18 @@ for (const [track, roundCount] of [
     for (let i = 0; i < roundCount; i++) {
       const firstOption = document.querySelector('.tools input[type="radio"]');
       await f.act(async () => firstOption.click());
+      await f.act(async () =>
+        document.querySelector(".tools button.btn.primary").focus(),
+      );
       await f.click("판정하기");
+      assert.ok(
+        document.activeElement ===
+          document.querySelector(".tools button.btn.primary"),
+      );
+      assert.equal(
+        document.activeElement.getAttribute("aria-describedby"),
+        document.querySelector('.tools [role="status"]').id,
+      );
       assert.ok(
         [...document.querySelectorAll('.tools input[type="radio"]')].every(
           (input) => input.disabled || input.closest("fieldset").disabled,

@@ -211,6 +211,10 @@ export function Backend({ finish }: PlayProps) {
     [tested, setTested] = useState<BackendFix | null>(null);
   const { progress, allowed, tickets, seats } = backendState(turns);
   const found = oversold(turns);
+  const fixHeading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if (found) fixHeading.current?.focus();
+  }, [found]);
   const stuck = turns.length === 6 && !found;
   const broken = tested ? countOversold(tested) : 0;
   const fixed = tested !== null && broken === 0;
@@ -295,7 +299,9 @@ export function Backend({ finish }: PlayProps) {
           </>
         ) : (
           <>
-            <h2>어떻게 고치면 될까요?</h2>
+            <h2 ref={fixHeading} tabIndex={-1}>
+              어떻게 고치면 될까요?
+            </h2>
             <p className={s.tip}>
               방법을 고르면 두 사람의 3단계가 겹칠 수 있는 {total}가지 순서
               모두에 돌려봐요.
