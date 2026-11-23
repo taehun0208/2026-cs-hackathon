@@ -110,6 +110,17 @@ const progress = z.object({
 export const stateSchema = z
   .object({
     version: z.literal(1),
+    games: z
+      .record(
+        track,
+        z.object({
+          version: z.literal(1),
+          completedAt: z.string().datetime(),
+          updatedAt: z.string().datetime(),
+          interest: score.optional(),
+        }),
+      )
+      .optional(),
     profile: z
       .object({
         experience: z.string().max(120).nullable().optional(),

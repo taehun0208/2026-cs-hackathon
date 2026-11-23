@@ -1,10 +1,5 @@
 export type TrackId =
-  | "frontend"
-  | "backend"
-  | "data"
-  | "ai"
-  | "security"
-  | "cloud";
+  "frontend" | "backend" | "data" | "ai" | "security" | "cloud";
 export type TestCase = {
   label: string;
   why: string;
@@ -137,10 +132,17 @@ export type Progress = {
   reflection?: Reflection;
   updatedAt: string;
 };
+export type GameRecord = {
+  version: 1;
+  completedAt: string;
+  updatedAt: string;
+  interest?: number;
+};
 export type LabState = {
   version: 1;
   profile?: Profile;
   progress: Partial<Record<TrackId, Progress>>;
+  games?: Partial<Record<TrackId, GameRecord>>;
 };
 export const emptyState = (): LabState => ({ version: 1, progress: {} });
 export const initialProgress = (m: Mission): Progress => ({

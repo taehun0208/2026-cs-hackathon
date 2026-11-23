@@ -2,7 +2,7 @@ import { z } from "zod";
 import { missionById } from "./mission-catalog.ts";
 export const ANALYTICS_VERSION = 1;
 export const GAME_ANALYTICS_VERSION = "games-2026-11-23.1";
-export const pilotCodes = [
+export const formalPilotCodes = [
   "P01",
   "P02",
   "P03",
@@ -15,8 +15,21 @@ export const pilotCodes = [
   "P10",
   "P11",
   "P12",
+] as const;
+export const prepilotCodes = ["S01", "S02", "S03"] as const;
+export const pilotCodes = [
+  ...prepilotCodes,
+  ...formalPilotCodes,
   "QA",
 ] as const;
+export type AnalyticsCohort = "all" | "pilot" | "prepilot" | "general";
+export function participantCohort(code: string | null) {
+  if (code === null) return "general";
+  if (code === "QA") return "qa";
+  if (prepilotCodes.some((candidate) => candidate === code)) return "prepilot";
+  if (formalPilotCodes.some((candidate) => candidate === code)) return "pilot";
+  return "unknown";
+}
 export const trackSchema = z.enum([
   "frontend",
   "backend",

@@ -1,6 +1,8 @@
 import {
   analyticsEventSchema,
   pilotCodes,
+  participantCohort,
+  type AnalyticsCohort,
   type AnalyticsEvent,
 } from "./analytics-schema.ts";
 export type EventRow = {
@@ -15,22 +17,35 @@ const ratio = (n: number, d: number) =>
     : { numerator: 0, denominator: 0, rate: null };
 export function summarizeAnalytics(
   rows: EventRow[],
-  options: { includeQA?: boolean; cohort?: "all" | "pilot" | "general" } = {},
+  options: { includeQA?: boolean; cohort?: AnalyticsCohort } = {},
 ) {
   let invalid = 0,
     qaExcluded = 0,
+    prepilotExcluded = 0,
     duplicates = 0;
   const ids = new Set<string>();
   const accepted: { row: EventRow; event: AnalyticsEvent }[] = [];
+  const selectedCohort = options.cohort ?? "all";
   for (const row of rows) {
+    const cohort = participantCohort(row.participantCode);
+    if (cohort === "unknown") {
+      invalid++;
+      continue;
+    }
     if (row.participantCode === "QA" && !options.includeQA) {
       qaExcluded++;
       continue;
     }
-    const pilot = !!row.participantCode && row.participantCode !== "QA";
+    // A prepilot must be requested explicitly; it is never silently pooled
+    // with the formal pilot or ordinary production use.
+    if (cohort === "prepilot" && selectedCohort !== "prepilot") {
+      prepilotExcluded++;
+      continue;
+    }
     if (
-      (options.cohort === "pilot" && !pilot) ||
-      (options.cohort === "general" && pilot)
+      (selectedCohort === "pilot" && cohort !== "pilot") ||
+      (selectedCohort === "prepilot" && cohort !== "prepilot") ||
+      (selectedCohort === "general" && cohort !== "general" && cohort !== "qa")
     )
       continue;
     const event = analyticsEventSchema.safeParse(row.event);
@@ -255,6 +270,7 @@ export function summarizeAnalytics(
     return starts.length ? [{ owner: p, first: starts[0] }] : [];
   });
   return {
+    cohort: selectedCohort,
     source:
       "선택 동의한 브라우저의 활동 보고이며 학생 전체를 대표하지 않습니다.",
     unit: "starts는 체험 열기 횟수(이어하기 포함), completion은 서버 저장 알림과 수정 실행 보고가 연결된 회고입니다.",
@@ -264,6 +280,7 @@ export function summarizeAnalytics(
     quality: {
       invalid,
       qaExcluded,
+      prepilotExcluded,
       duplicates,
       journeysWithoutStart: missingStarts,
       inconsistentJourneys: inconsistent,

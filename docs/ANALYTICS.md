@@ -50,7 +50,7 @@ node scripts/report-analytics.mjs --since 2026-11-23 --until 2026-11-24 --cohort
 node scripts/report-analytics.mjs --input /private/path/synthetic-events.json --cohort all
 ```
 
-날짜는 UTC, `until`은 제외 경계입니다. 기본 범위는 최근 30일 시작일~내일 0시이며 all/pilot/general을 구분합니다. QA는 `--include-qa`를 명시해야 포함됩니다. 50,000개를 초과하면 부분 보고서를 만들지 않고 기간 축소를 요청합니다. 출력에는 소유자 키·동의 토큰·세션·여정 ID를 넣지 않습니다.
+날짜는 UTC, `until`은 제외 경계입니다. 기본 범위는 최근 30일 시작일~내일 0시이며 all/pilot/prepilot/general을 구분합니다. 기본 `all`은 일반 이용과 정식 P01~P12이며 S01~S03 예비테스트는 제외합니다. `prepilot`만 S번호를 집계하며 `quality.prepilotExcluded`로 제외 수를 표시합니다. QA는 `--include-qa`를 명시해야 포함되고 pilot/prepilot 분모에는 포함하지 않습니다. 50,000개를 초과하면 부분 보고서를 만들지 않고 기간 축소를 요청합니다. 출력에는 소유자 키·동의 토큰·세션·여정 ID를 넣지 않습니다.
 
 - `perRole`은 코드/게임·직무·콘텐츠 버전별입니다. 시작(이어하기 포함), 수정 실행, 도움, 제출/저장, 저장이 관측되지 않은 제출, 다음 활동, 게임 확인/실패/완료를 구분합니다.
 - 저장된 코드 회고는 같은 브라우저·직무·버전·실행 ID의 수정 실행 보고가 있어야 셉니다. 이어하기 전의 실행도 연결합니다. 게임 완료는 성공 확인과 완료 종료가 함께 있어야 셉니다. 모두 브라우저의 미검증 보고이며 서버가 학생 코드를 실행한 증거가 아닙니다.
@@ -74,3 +74,5 @@ LAB_TEST_URL=http://127.0.0.1:3003 node tests/analytics-api.mjs
 ```
 
 ![선택 참여 설정](screenshots/analytics-consent.jpg)
+
+3명 예비테스트의 S번호·진행 대본·빈 양식은 [예비테스트 준비](PREPILOT.md)를 참고하세요. 정식 12명과 예비테스트의 응답·성과를 합치지 않습니다. `node scripts/report-analytics.mjs --help`는 DB나 비밀 설정 없이 집계 범위를 확인합니다.

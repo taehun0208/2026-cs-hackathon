@@ -1,3 +1,4 @@
+import { budgetFixture } from "./helpers/budget-fixture.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { coachInput, getHint } from "../lib/coach.ts";
@@ -23,6 +24,7 @@ function setup({ consent = true, allow = true } = {}) {
       reservations++;
       return allow;
     },
+    ...budgetFixture(),
     logUsage: async (x) => usage.push(x),
   };
 }
@@ -73,7 +75,7 @@ test("coach reads authoritative mission using a real tool loop before suggesting
   };
   const result = await getHint(input, "owner", store, {
     apiKey: "test-key",
-    model: "test",
+    model: "gpt-4.1-mini",
     fetcher,
   });
   assert.equal(result.source, "ai");
@@ -98,7 +100,7 @@ test("missing credentials, consent, and budget never make provider requests", as
     let called = false;
     const result = await getHint(input, "owner", store, {
       apiKey: key,
-      model: "test",
+      model: "gpt-4.1-mini",
       fetcher: async () => {
         called = true;
         throw Error();
@@ -119,7 +121,7 @@ test("provider failure, timeout, and invalid JSON are clearly labelled as basic 
     const store = setup();
     const result = await getHint(input, "owner", store, {
       apiKey: "test",
-      model: "test",
+      model: "gpt-4.1-mini",
       fetcher,
     });
     assert.equal(result.source, "guide");
@@ -131,7 +133,7 @@ test("unknown tool calls and unbounded tool loops are rejected", async () => {
   const store = setup();
   const result = await getHint(input, "owner", store, {
     apiKey: "test",
-    model: "test",
+    model: "gpt-4.1-mini",
     fetcher: async () =>
       reply({
         tool_calls: [
@@ -188,7 +190,7 @@ test("AI context omits legacy/unanswered values and includes only explicitly sup
     let user;
     await getHint(input, "owner", store, {
       apiKey: "test",
-      model: "test",
+      model: "gpt-4.1-mini",
       fetcher: async (_, o) => {
         user = JSON.parse(JSON.parse(o.body).messages[1].content);
         return reply({
@@ -215,7 +217,7 @@ test("the server deadline includes storage lookup and prevents provider calls af
   store.read = () => new Promise((r) => (resolveRead = r));
   const result = await getHint(input, "owner", store, {
     apiKey: "test",
-    model: "test",
+    model: "gpt-4.1-mini",
     timeoutMs: 20,
     fetcher: async () => {
       calls++;
@@ -234,7 +236,7 @@ test("tool rounds share one budget rather than restarting the timeout on each ca
   let calls = 0;
   const result = await getHint(input, "owner", store, {
     apiKey: "test",
-    model: "test",
+    model: "gpt-4.1-mini",
     timeoutMs: 45,
     fetcher: async (_, o) => {
       calls++;
@@ -268,7 +270,7 @@ test("slow usage logging cannot hold a completed request beyond the overall dead
   };
   const result = await getHint(input, "owner", store, {
     apiKey: "test",
-    model: "test",
+    model: "gpt-4.1-mini",
     timeoutMs: 20,
     fetcher: async () => {
       const name = ["read_mission", "inspect_checks"][round++];

@@ -17,12 +17,16 @@ const headers = {
   Origin: base,
   Cookie: cookie,
 };
-const write = (state) =>
-  fetch(base + "/api/state", {
+let revision = "new";
+const write = async (state) => {
+  const response = await fetch(base + "/api/state", {
     method: "POST",
-    headers,
+    headers: { ...headers, "X-Lab-Revision": revision },
     body: JSON.stringify(state),
   });
+  if (response.ok) revision = (await response.clone().json()).savedAt;
+  return response;
+};
 const read = async () =>
   (
     await (

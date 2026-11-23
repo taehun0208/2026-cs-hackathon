@@ -1,3 +1,4 @@
+import { budgetFixture } from "./helpers/budget-fixture.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import vm from "node:vm";
@@ -241,6 +242,7 @@ const storage = (p) => ({
     state: { profile: { aiConsent: true }, progress: p ? { cloud: p } : {} },
   }),
   reserve: async () => true,
+  ...budgetFixture(),
   logUsage: async () => {},
 });
 test("AI reads the pinned old conditions even when new starts use a revised rule and hint", async () => {
@@ -264,7 +266,7 @@ test("AI reads the pinned old conditions even when new starts use a revised rule
     storage(p),
     {
       apiKey: "fixture",
-      model: "fixture",
+      model: "gpt-4.1-mini",
       catalog,
       fetcher: async (_, options) => {
         const payload = JSON.parse(options.body);
@@ -329,7 +331,7 @@ test("unknown and mismatched AI version requests are rejected before quota reser
         actualStore,
         {
           apiKey: "fixture",
-          model: "fixture",
+          model: "gpt-4.1-mini",
           fetcher: async () => {
             calls.push("fetch");
             throw Error();
@@ -352,7 +354,7 @@ test("legacy AI clients resolve only the preserved baseline, never a newly activ
     { track: "cloud", code: p.code, question: "도움", level: 0, tests: [] },
     "fixture",
     storage(p),
-    { model: "fixture", catalog },
+    { model: "gpt-4.1-mini", catalog },
   );
   assert.equal(result.contentVersion, LEGACY_CONTENT_VERSION);
   assert.equal(result.message, original.hints[0]);

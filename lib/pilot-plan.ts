@@ -25,3 +25,14 @@ export const pilotAssignments = Array.from({ length: 12 }, (_, i) => {
     second: i < 6 ? b : a,
   };
 });
+
+// A small usability check, kept separate from the later 12-person pilot.
+export const prepilotAssignments = [
+  { participantCode: "S01", first: "frontend", second: "backend" },
+  { participantCode: "S02", first: "data", second: "ai" },
+  { participantCode: "S03", first: "security", second: "cloud" },
+] as const satisfies readonly {
+  participantCode: string;
+  first: TrackId;
+  second: TrackId;
+}[];

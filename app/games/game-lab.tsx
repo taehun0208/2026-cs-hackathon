@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useStoredLab } from "../use-stored-lab";
 import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -45,14 +47,6 @@ import { AnalyticsSettings, useAnalytics } from "../analytics-settings";
 import { GAME_ANALYTICS_VERSION } from "../../lib/analytics-schema";
 import type { TrackId } from "../../lib/missions";
 const GameCheckContext = createContext<(passed: boolean) => void>(() => {});
-const gameTracks: TrackId[] = [
-  "frontend",
-  "backend",
-  "data",
-  "ai",
-  "security",
-  "cloud",
-];
 
 type PlayProps = { finish: () => void };
 type Step = { label: string; done: boolean };
@@ -517,6 +511,7 @@ function Cloud({ finish }: PlayProps) {
 }
 const games = [
   {
+    id: "frontend",
     role: "프론트엔드",
     name: "작은 화면 수리하기",
     summary: "큰 글자도 잘리지 않게 버튼 고치기",
@@ -527,6 +522,7 @@ const games = [
     play: Frontend,
   },
   {
+    id: "backend",
     role: "백엔드",
     name: "마지막 표 한 장",
     summary: "동시 신청에도 표 한 장만 발급하기",
@@ -538,6 +534,7 @@ const games = [
     play: Backend,
   },
   {
+    id: "data",
     role: "데이터 분석",
     name: "실제 방문자 세기",
     summary: "재입장을 빼고 실제 방문자 세기",
@@ -548,6 +545,7 @@ const games = [
     play: Data,
   },
   {
+    id: "ai",
     role: "AI 엔지니어",
     name: "근거를 보고 답하는 봇",
     summary: "질문에 맞는 공지를 골라 답하기",
@@ -558,6 +556,7 @@ const games = [
     play: AI,
   },
   {
+    id: "security",
     role: "보안 엔지니어",
     name: "필요한 문만 열기",
     summary: "사람마다 필요한 자료만 열어주기",
@@ -569,6 +568,7 @@ const games = [
     play: Security,
   },
   {
+    id: "cloud",
     role: "클라우드/SRE",
     name: "신청 대기 줄 없애기",
     summary: "서버를 옮겨 바쁜 창구의 대기 줄이기",
@@ -578,36 +578,87 @@ const games = [
     icon: Server,
     play: Cloud,
   },
-];
-export default function GameLab() {
-  const analytics = useAnalytics();
+] satisfies {
+  id: TrackId;
+  role: string;
+  name: string;
+  summary: string;
+  intro: string;
+  learned: string;
+  icon: typeof LayoutTemplate;
+  play: typeof Frontend;
+}[];
+export default function GameLab({ initialTrack }: { initialTrack?: TrackId }) {
+  const { state, setState, status, controller } = useStoredLab();
+  const entryHandled = useRef("");
+  const [locationVersion, setLocationVersion] = useState(0);
+  // State loading establishes the guest cookie before analytics reads it.
+  const analytics = useAnalytics(status.phase !== "loading");
+  const ready = status.ready && analytics.status.phase !== "loading";
   useEffect(() => {
     if (analytics.status.enabled)
       analytics.client.current?.track("page_view", { page: "games" });
   }, [analytics.status.token]);
   const [game, setGame] = useState<number | null>(null),
-    [done, setDone] = useState<number[]>([]),
     [won, setWon] = useState(false),
     [attempt, setAttempt] = useState(0);
+  const done = games.filter((g) => state.games?.[g.id]);
   const current = game === null ? null : games[game],
     Play = current?.play;
-  const choose = (i: number | null) => {
-    if (i === null) analytics.client.current?.end("left");
+  const choose = (
+    i: number | null,
+    replay = false,
+    mode: "push" | "replace" = "push",
+  ) => {
+    if (!ready) return;
+    const url = new URL(window.location.href);
+    if (i === null) url.searchParams.delete("track");
+    else url.searchParams.set("track", games[i].id);
+    if (url.href !== window.location.href)
+      window.history[mode === "push" ? "pushState" : "replaceState"](
+        null,
+        "",
+        url,
+      );
+    entryHandled.current = url.href;
+    const reviewing = i !== null && !replay && !!state.games?.[games[i].id];
+    if (i === null || reviewing) analytics.client.current?.end("left");
     else
       analytics.client.current?.begin(
-        gameTracks[i],
+        games[i].id,
         "game",
         GAME_ANALYTICS_VERSION,
         "new",
       );
     setGame(i);
-    setWon(false);
+    setWon(i !== null && !replay && !!state.games?.[games[i].id]);
     setAttempt((v) => v + 1);
     window.scrollTo({ top: 0, behavior: "instant" });
   };
+  useEffect(() => {
+    const changed = () => setLocationVersion((value) => value + 1);
+    window.addEventListener("popstate", changed);
+    return () => window.removeEventListener("popstate", changed);
+  }, []);
+  useEffect(() => {
+    if (!ready || entryHandled.current === window.location.href) return;
+    const track = new URL(window.location.href).searchParams.get("track");
+    const index = games.findIndex((g) => g.id === track);
+    choose(index < 0 ? null : index, false, "replace");
+  }, [initialTrack, ready, locationVersion]);
+  const download = () => {
+    const url = URL.createObjectURL(
+      new Blob([JSON.stringify(state, null, 2)], { type: "application/json" }),
+    );
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "haebogi-records.json";
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
   return (
     <>
-      <header className="site-header">
+      <header className="site-header game-header">
         <div className="nav-inner">
           <Link className="brand" href="/">
             <span className="brand-mark">
@@ -618,9 +669,110 @@ export default function GameLab() {
           <Link className="btn secondary compact" href="/">
             코드 체험하기
           </Link>
+          <Link className="btn secondary compact" href="/?view=journal">
+            나의 기록
+          </Link>
         </div>
       </header>
-      <main className={`wrap ${s.main}`}>
+      <section
+        className={`storage-banner ${["error", "recovery", "conflict"].includes(status.phase) ? "" : "game-save-status"}`}
+        aria-label="게임 기록 저장 안내"
+      >
+        <div role="status">
+          <strong>
+            {status.message ||
+              {
+                loading: "기록을 불러오고 있어요.",
+                idle: "게임을 마치면 자동으로 기록해요.",
+                saving: "게임 기록을 저장하고 있어요.",
+                saved: "기록을 저장했어요.",
+                deleting: "기록을 삭제하고 있어요.",
+                error: "저장을 다시 시도해주세요.",
+                recovery: "초안을 확인해주세요.",
+                conflict: "겹친 변경을 확인해주세요.",
+              }[status.phase]}
+          </strong>
+          {status.localSaved && status.phase !== "saved" && (
+            <p>이 브라우저에 초안을 보관하고 있어요.</p>
+          )}
+          {!status.localSaved && status.ready && status.phase !== "idle" && (
+            <p>
+              기기 초안을 보관하지 못했어요. 서버 저장 완료를 확인하거나 기록을
+              내려받아주세요.
+            </p>
+          )}
+        </div>
+        <div className="storage-actions">
+          {!!status.pendingDrafts && status.ready && (
+            <button
+              className="btn secondary compact"
+              onClick={() => void controller.current?.recoverNextDraft()}
+            >
+              남은 초안 {status.pendingDrafts}개 확인
+            </button>
+          )}
+          {status.phase === "error" && (
+            <button
+              className="btn primary compact"
+              onClick={() => void controller.current?.retry()}
+            >
+              다시 시도
+            </button>
+          )}
+          {status.phase === "recovery" && (
+            <button
+              className="btn primary compact"
+              onClick={() => void controller.current?.restore()}
+            >
+              초안 복구해 저장
+            </button>
+          )}
+          {status.phase === "conflict" &&
+            (status.canResolve ? (
+              <>
+                <button
+                  className="btn primary compact"
+                  onClick={() =>
+                    void controller.current?.resolveConflict("local")
+                  }
+                >
+                  겹친 부분은 이 탭 내용 유지
+                </button>
+                <button
+                  className="btn secondary compact"
+                  onClick={() =>
+                    void controller.current?.resolveConflict("remote")
+                  }
+                >
+                  겹친 부분은 서버 내용 사용
+                </button>
+              </>
+            ) : (
+              <button
+                className="btn secondary compact"
+                onClick={() => location.reload()}
+              >
+                새로고침
+              </button>
+            ))}
+          {["error", "recovery", "conflict"].includes(status.phase) && (
+            <>
+              <button className="btn secondary compact" onClick={download}>
+                기록 내려받기
+              </button>
+              <Link className="btn secondary compact" href="/?view=journal">
+                기록 관리 열기
+              </Link>
+            </>
+          )}
+        </div>
+      </section>
+      {status.ready && analytics.status.phase === "loading" && (
+        <div className="loading-strip" role="status">
+          참여 설정을 확인하고 있어요.
+        </div>
+      )}
+      <main inert={!ready} className={`wrap ${s.main}`}>
         {current && (
           <button className={s.back} onClick={() => choose(null)}>
             <ArrowLeft size={16} /> 직무 목록
@@ -660,8 +812,8 @@ export default function GameLab() {
                   <strong>{g.name}</strong>
                   <span className={s.cardDescription}>{g.summary}</span>
                   <span className={s.cardAction}>
-                    {done.includes(i) ? "다시 해보기" : "해보기"}
-                    {done.includes(i) ? (
+                    {state.games?.[g.id] ? "결과와 흥미 보기" : "해보기"}
+                    {state.games?.[g.id] ? (
                       <Check size={16} />
                     ) : (
                       <ArrowRight size={16} />
@@ -671,8 +823,9 @@ export default function GameLab() {
               ))}
             </div>
             <p className={s.footnote}>
-              게임 완료 표시는 이 페이지를 열어둔 동안 유지돼요. 코드 체험
-              기록과는 별개예요.
+              게임 완료와 흥미 평가는 이 브라우저의 기록으로 저장돼요. 나의
+              기록과 비교하기에서 다시 볼 수 있고, 코드 체험 회고와는 따로
+              표시해요.
             </p>
           </>
         )}
@@ -686,8 +839,23 @@ export default function GameLab() {
               <Play
                 key={attempt}
                 finish={() => {
-                  if (game !== null && !done.includes(game))
-                    setDone([...done, game]);
+                  if (current)
+                    setState((previous) => {
+                      const now = new Date().toISOString();
+                      return {
+                        ...previous,
+                        games: {
+                          ...previous.games,
+                          [current.id]: {
+                            ...previous.games?.[current.id],
+                            version: 1,
+                            completedAt:
+                              previous.games?.[current.id]?.completedAt ?? now,
+                            updatedAt: now,
+                          },
+                        },
+                      };
+                    });
                   analytics.client.current?.end("completed");
                   setWon(true);
                   window.scrollTo({ top: 0, behavior: "instant" });
@@ -697,14 +865,60 @@ export default function GameLab() {
           </div>
         )}
         {won && current && (
-          <section className={s.complete} role="status">
+          <section className={s.complete} aria-labelledby="game-complete-title">
             <span className={s.completeIcon} aria-hidden="true">
               <Check size={27} />
             </span>
-            <h2>작은 업무 하나를 해봤어요</h2>
+            <h2 id="game-complete-title">작은 업무 하나를 해봤어요</h2>
+
             <p>{current.learned}</p>
+            <fieldset className={s.rating}>
+              <legend>
+                이 일을 해보니 얼마나 흥미로웠나요? <small>(선택)</small>
+              </legend>
+              <div>
+                {[1, 2, 3, 4, 5].map((score) => (
+                  <label key={score}>
+                    <input
+                      type="radio"
+                      name="game-interest"
+                      value={score}
+                      checked={state.games?.[current.id]?.interest === score}
+                      onChange={() =>
+                        setState((previous) => {
+                          const record = previous.games?.[current.id];
+                          if (!record) return previous;
+                          return {
+                            ...previous,
+                            games: {
+                              ...previous.games,
+                              [current.id]: {
+                                ...record,
+                                interest: score,
+                                updatedAt: new Date().toISOString(),
+                              },
+                            },
+                          };
+                        })
+                      }
+                    />{" "}
+                    {score}점
+                  </label>
+                ))}
+              </div>
+              <small>1점 별로 흥미롭지 않음 · 5점 매우 흥미로움</small>
+            </fieldset>
             <div className={s.keys}>
-              <button className="btn secondary" onClick={() => choose(game)}>
+              <Link className="btn primary" href={`/?track=${current.id}`}>
+                같은 직무 코드로 해보기 <ArrowRight size={16} />
+              </Link>
+              <Link className="btn secondary" href="/?view=compare">
+                내 흥미 비교하기
+              </Link>
+              <button
+                className="btn secondary"
+                onClick={() => choose(game, true)}
+              >
                 한 번 더 해보기
               </button>
               <button className="btn primary" onClick={() => choose(null)}>

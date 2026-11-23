@@ -1,3 +1,4 @@
+import { budgetFixture } from "./helpers/budget-fixture.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import vm from "node:vm";
@@ -11,6 +12,7 @@ import {
 const store = () => ({
   read: async () => ({ state: { profile: { aiConsent: true } } }),
   reserve: async () => true,
+  ...budgetFixture(),
   logUsage: async () => {},
 });
 const select = (g) =>
@@ -50,7 +52,7 @@ function provider(final, inspect = () => {}) {
 }
 const config = (fetcher) => ({
   apiKey: "fixture-key",
-  model: "fixture",
+  model: "gpt-4.1-mini",
   fetcher,
 });
 const input = (m) => ({

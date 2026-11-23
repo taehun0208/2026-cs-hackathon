@@ -1788,6 +1788,86 @@ nav > button.active:after {
   color: #43547a;
   padding: 6px 0;
 }
+.experience-section {
+  margin-bottom: 36px;
+}
+.game-save-status {
+  background: #f4f8fb;
+  color: #34506a;
+}
+.experience-section > h2 {
+  font-size: 22px;
+  margin-bottom: 10px;
+}
+.experience-section > p {
+  color: var(--muted);
+  margin-bottom: 18px;
+}
+.experience-section .record-card h3 {
+  margin: 14px 0;
+  font-size: 19px;
+}
+.experience-section .record-card > p {
+  margin-bottom: 16px;
+}
+.experience-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.next-action .btn {
+  margin-top: 14px;
+  align-self: flex-start;
+}
+.activity-page {
+  max-width: 880px;
+  padding-top: 42px;
+  padding-bottom: 70px;
+}
+.activity-page .page-intro p {
+  max-width: 72ch;
+  line-height: 1.8;
+}
+.activity-card {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 26px;
+  margin-bottom: 20px;
+  line-height: 1.8;
+}
+.activity-card h2 {
+  font-size: 21px;
+  margin-bottom: 12px;
+}
+.activity-card ol {
+  list-style: decimal;
+  padding-left: 24px;
+}
+.activity-card li + li {
+  margin-top: 12px;
+}
+.activity-card pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: #f4f7fb;
+  border-radius: 10px;
+  padding: 18px;
+  font-size: 14px;
+}
+.activity-note {
+  color: #536174;
+  font-size: 14px;
+  margin-top: 18px;
+}
+@media (max-width: 600px) {
+  .activity-page {
+    padding-top: 24px;
+  }
+  .activity-card {
+    padding: 18px;
+  }
+}
 .analytics-settings {
   border: 1px solid var(--line);
   background: white;
@@ -3171,4 +3251,68 @@ nav > button.active:after {
 .compare-table-wrap:focus-visible {
   outline: 3px solid var(--blue);
   outline-offset: 4px;
+}
+
+@media (max-width: 760px) {
+  .game-header .nav-inner {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-block: 8px;
+  }
+  .game-header .brand {
+    margin-right: auto;
+    min-height: 44px;
+  }
+  .game-header .btn {
+    font-size: 13px;
+    padding: 10px 12px;
+  }
+}
+
+/* Explain the choice students are making, without adding a separate onboarding. */
+.experience-path {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  list-style: decimal inside;
+  margin: 20px 0 0;
+  padding: 0;
+  color: var(--secondary);
+  font-size: 14px;
+}
+.experience-path li::marker {
+  color: var(--blue);
+  font-weight: 650;
+}
+.welcome-prerequisite {
+  margin-top: 14px;
+  color: var(--secondary);
+  font-size: 14px;
+  line-height: 1.8;
+}
+.welcome-prerequisite a {
+  color: var(--blue);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.reflection-context-guide {
+  margin: 22px 0 0;
+  color: var(--secondary);
+  font-size: 14px;
+  line-height: 1.8;
+}
+@media (max-width: 760px) {
+  .experience-path {
+    gap: 8px 18px;
+    font-size: 13px;
+  }
+  .welcome-prerequisite {
+    font-size: 14px;
+  }
+  .welcome-prerequisite a {
+    display: inline-block;
+    min-height: 36px;
+    padding-block: 4px;
+  }
 }

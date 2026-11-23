@@ -6,6 +6,23 @@ import {
 import assert from "node:assert/strict";
 import { normalizeLabState } from "../lib/lab-state.ts";
 const base = process.env.LAB_TEST_URL ?? "http://127.0.0.1:3000";
+// Carry the receipt for each isolated guest, just as the browser client does.
+const revisions = new Map();
+const fetch = async (url, options = {}) => {
+  const key = options.headers?.Cookie;
+  const response = await globalThis.fetch(url, {
+    ...options,
+    headers: {
+      ...options.headers,
+      ...(options.method === "POST" && url.endsWith("/api/state")
+        ? { "X-Lab-Revision": revisions.get(key) ?? "new" }
+        : {}),
+    },
+  });
+  if (response.ok && options.method === "POST" && url.endsWith("/api/state"))
+    revisions.set(key, (await response.clone().json()).savedAt);
+  return response;
+};
 const first = await fetch(base + "/api/state");
 assert.equal(first.status, 200);
 const cookie = first.headers.get("set-cookie")?.split(";")[0];

@@ -68,15 +68,17 @@ import {
 } from "../lib/next-actions";
 import { AnalyticsSettings, useAnalytics } from "./analytics-settings";
 import { requestCoach } from "../lib/coach-request";
+import { activityHref, selectedActivity } from "../lib/activities";
 import { DeadlineExceeded } from "../lib/async-deadline";
 import {
   createPersistence,
-  DRAFT_KEY,
+  isRecordReset,
   hasWork,
   type SaveStatus,
 } from "../lib/persistence";
 
 type View = "home" | "work" | "journal" | "compare" | "guide";
+type HistoryMode = "push" | "replace";
 const icons = {
   frontend: LayoutTemplate,
   backend: Braces,
@@ -127,7 +129,9 @@ const taskLabels: Record<TrackId, { title: string; description: string }> = {
 };
 function TrackIcon({ id, size = 22 }: { id: TrackId; size?: number }) {
   const Icon = icons[id];
-  return <Icon size={size} strokeWidth={1.8} />;
+  return (
+    <Icon size={size} strokeWidth={1.8} aria-hidden="true" focusable="false" />
+  );
 }
 function Rating({
   label,
@@ -204,7 +208,15 @@ function ProfileQuestions({
     </details>
   );
 }
-export default function Lab() {
+export default function Lab({
+  initialTrack,
+  initialView,
+}: {
+  initialTrack?: TrackId;
+  initialView?: "journal" | "compare" | "guide";
+}) {
+  const entryHandled = useRef("");
+  const [locationVersion, setLocationVersion] = useState(0);
   const [view, setView] = useState<View>("home"),
     [state, setState] = useState<LabState>(emptyState),
     [notice, setNotice] = useState("");
@@ -218,8 +230,11 @@ export default function Lab() {
   });
   const analytics = useAnalytics(saveStatus.phase !== "loading");
   const persistence = useRef<ReturnType<typeof createPersistence> | null>(null);
+  const executionEpoch = useRef(0);
   const editor = useRef<HTMLTextAreaElement | null>(null);
-  const ready = saveStatus.ready;
+  // Resolve the existing consent before a direct link starts its journey.
+  // A failed consent lookup still permits play, with collection disabled.
+  const ready = saveStatus.ready && analytics.status.phase !== "loading";
   const deleting = saveStatus.phase === "deleting";
   const saveLabel = {
     loading: "불러오는 중",
@@ -301,6 +316,10 @@ export default function Lab() {
     .filter((m) => state.progress[m.id]?.reflection)
     .map((m) => missionForProgress(m.id, state.progress[m.id]!) ?? m);
   const completed = recorded.filter((m) => isCompleted(state.progress[m.id]));
+  const inProgress = missions.filter(
+    (m) => state.progress[m.id] && !state.progress[m.id]?.reflection,
+  );
+  const playedGames = missions.filter((m) => state.games?.[m.id]);
   function answerProfile(field: "experience" | "purpose", value: string) {
     setState((s) => ({
       ...s,
@@ -318,13 +337,31 @@ export default function Lab() {
     coachController.current = null;
     setAsking(false);
   }
+  function cancelExecution() {
+    executionEpoch.current += 1;
+    setRunning(false);
+  }
   function toast(message: string) {
     setNotice(message);
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setNotice(""), 4500);
   }
-  function navigate(next: View) {
+  function navigate(next: View, mode: HistoryMode = "push", track = active) {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("track");
+    url.searchParams.delete("view");
+    if (next === "work") url.searchParams.set("track", track);
+    else if (next !== "home") url.searchParams.set("view", next);
+    url.hash = "";
+    if (url.href !== window.location.href)
+      window.history[mode === "push" ? "pushState" : "replaceState"](
+        null,
+        "",
+        url,
+      );
+    entryHandled.current = url.href;
     cancelCoach();
+    setModal(null);
     if (view === "work" && next !== "work")
       analytics.client.current?.end("left");
     setView(next);
@@ -334,9 +371,18 @@ export default function Lab() {
     let alive = true;
     const controller = createPersistence({
       storage: {
+        get length() {
+          return localStorage.length;
+        },
+        key: (index) => localStorage.key(index),
         getItem: (key) => localStorage.getItem(key),
         setItem: (key, value) => localStorage.setItem(key, value),
         removeItem: (key) => localStorage.removeItem(key),
+      },
+      tabStorage: {
+        getItem: (key) => sessionStorage.getItem(key),
+        setItem: (key, value) => sessionStorage.setItem(key, value),
+        removeItem: (key) => sessionStorage.removeItem(key),
       },
       onState: (next) => {
         if (alive) setState(next);
@@ -349,8 +395,9 @@ export default function Lab() {
     persistence.current = controller;
     void controller.load();
     const onStorage = (e: StorageEvent) => {
-      if ((e.key === DRAFT_KEY && e.newValue === null) || e.key === null) {
+      if (isRecordReset(e)) {
         cancelCoach();
+        cancelExecution();
         controller.externalReset();
         setModal(null);
       }
@@ -365,6 +412,8 @@ export default function Lab() {
     return () => {
       alive = false;
       controller.dispose();
+      executionEpoch.current += 1;
+      if (toastTimer.current) clearTimeout(toastTimer.current);
       window.removeEventListener("storage", onStorage);
       coachEpoch.current += 1;
       coachController.current?.abort();
@@ -373,6 +422,28 @@ export default function Lab() {
   useEffect(() => {
     persistence.current?.stage(state);
   }, [state]);
+  useEffect(() => {
+    const changed = () => setLocationVersion((value) => value + 1);
+    window.addEventListener("popstate", changed);
+    return () => window.removeEventListener("popstate", changed);
+  }, []);
+  useEffect(() => {
+    if (!ready || entryHandled.current === window.location.href) return;
+    const url = new URL(window.location.href);
+    const track = missions.find(
+      (m) => m.id === url.searchParams.get("track"),
+    )?.id;
+    const next = url.searchParams.get("view");
+    entryHandled.current = url.href;
+    if (track) start(track, "replace");
+    else
+      navigate(
+        next === "journal" || next === "compare" || next === "guide"
+          ? next
+          : "home",
+        "replace",
+      );
+  }, [ready, initialTrack, initialView, locationVersion]);
   useEffect(() => {
     if (!analytics.status.enabled) return;
     analytics.client.current?.track("page_view", { page: view });
@@ -445,16 +516,16 @@ export default function Lab() {
       },
     }));
   }
-  function start(id: TrackId) {
+  function start(id: TrackId, mode: HistoryMode = "push") {
     if (!ready) return;
     if (!state.profile)
       setState((s) => ({
         ...s,
         profile: normalizeProfile(null),
       }));
-    openWork(id);
+    openWork(id, mode);
   }
-  function openWork(id: TrackId) {
+  function openWork(id: TrackId, mode: HistoryMode = "push") {
     if (!state.progress[id] && !canStartMission(id)) {
       toast("지금은 새 체험을 준비 중이에요.");
       return;
@@ -483,7 +554,7 @@ export default function Lab() {
       );
     if (!previous) patch(id, initialProgress(missionById(id)!));
     setModal(null);
-    navigate("work");
+    navigate("work", mode, id);
   }
   function focusPracticeLine() {
     const needle = mission.practice?.focus;
@@ -508,6 +579,7 @@ export default function Lab() {
   }
   async function execute() {
     if (running || unavailableContent) return;
+    const epoch = ++executionEpoch.current;
     setRunning(true);
     const code = progress.code;
     const executedAt = new Date().toISOString();
@@ -517,6 +589,7 @@ export default function Lab() {
       code,
       active === "frontend" ? [events, category, availableOnly] : undefined,
     );
+    if (epoch !== executionEpoch.current) return;
     const lastExecution = await snapshotExecution(
       progress,
       mission,
@@ -526,6 +599,7 @@ export default function Lab() {
         ? [events, category, availableOnly]
         : mission.previewArgs,
     );
+    if (epoch !== executionEpoch.current) return;
     analytics.client.current?.track(
       "run_result",
       {
@@ -717,10 +791,11 @@ export default function Lab() {
   }
   async function erase() {
     cancelCoach();
+    cancelExecution();
     analytics.client.current?.pause();
     if (await persistence.current?.remove()) {
       setModal(null);
-      navigate("home");
+      navigate("home", "replace");
       void analytics.client.current?.load();
       toast("서버와 이 기기의 체험 기록을 삭제했어요.");
     }
@@ -830,6 +905,11 @@ export default function Lab() {
           체험 기록을 불러오고 있어요.
         </div>
       )}
+      {saveStatus.ready && analytics.status.phase === "loading" && (
+        <div className="loading-strip" role="status">
+          참여 설정을 확인하고 있어요.
+        </div>
+      )}
       {["error", "recovery", "conflict"].includes(saveStatus.phase) && (
         <section className="storage-banner" aria-label="기록 저장 안내">
           <div role="status">
@@ -851,12 +931,33 @@ export default function Lab() {
                 초안 복구해 저장
               </button>
             ) : saveStatus.phase === "conflict" ? (
-              <button
-                className="btn secondary compact"
-                onClick={() => location.reload()}
-              >
-                새로고침
-              </button>
+              saveStatus.canResolve ? (
+                <>
+                  <button
+                    className="btn primary compact"
+                    onClick={() =>
+                      void persistence.current?.resolveConflict("local")
+                    }
+                  >
+                    겹친 부분은 이 탭 내용 유지
+                  </button>
+                  <button
+                    className="btn secondary compact"
+                    onClick={() =>
+                      void persistence.current?.resolveConflict("remote")
+                    }
+                  >
+                    겹친 부분은 서버 내용 사용
+                  </button>
+                </>
+              ) : (
+                <button
+                  className="btn secondary compact"
+                  onClick={() => location.reload()}
+                >
+                  새로고침
+                </button>
+              )
             ) : (
               <button
                 className="btn primary compact"
@@ -879,6 +980,18 @@ export default function Lab() {
           </div>
         </section>
       )}
+      {!!saveStatus.pendingDrafts && saveStatus.ready && (
+        <div className="storage-banner" role="status">
+          다른 창에서 저장하지 못한 초안이 {saveStatus.pendingDrafts}개 남아
+          있어요.
+          <button
+            className="btn secondary compact"
+            onClick={() => void persistence.current?.recoverNextDraft()}
+          >
+            남은 초안 확인
+          </button>
+        </div>
+      )}
       {!saveStatus.localSaved &&
         ["saving", "saved"].includes(saveStatus.phase) && (
           <div className="storage-banner" role="status">
@@ -896,7 +1009,16 @@ export default function Lab() {
           <section className="welcome">
             <h1>어떤 일을 해보고 싶나요?</h1>
             <p className="welcome-description">
-              작은 코드를 바꾸고 실행하며, 궁금했던 직무를 경험해봐요.
+              교내 행사 서비스의 작은 업무로, 궁금했던 직무를 경험해봐요.
+            </p>
+            <ol className="experience-path" aria-label="체험 흐름">
+              <li>업무 해보기</li>
+              <li>흥미·어려움 비교하기</li>
+              <li>다음 학습 고르기</li>
+            </ol>
+            <p className="welcome-prerequisite">
+              JavaScript 기초가 있다면 한 줄 수정부터 시작해요.{" "}
+              <Link href="/games">코드가 낯설면 게임으로 둘러보기</Link>
             </p>
           </section>
           {resumeMission && (
@@ -942,6 +1064,7 @@ export default function Lab() {
                 .filter((m) => group === "all" || trackGroup[m.id] === group)
                 .map((m) => {
                   const p = state.progress[m.id];
+                  const pinnedMission = p ? missionForProgress(m.id, p) : m;
                   return (
                     <article className={`job-card ${m.color}`} key={m.id}>
                       <button
@@ -969,7 +1092,11 @@ export default function Lab() {
                           <h3>{taskLabels[m.id].title}</h3>
                           <p>{taskLabels[m.id].description}</p>
                           <div className="job-bottom">
-                            <span>약 {m.time}</span>
+                            <span>
+                              {pinnedMission
+                                ? `약 ${pinnedMission.time}`
+                                : "과제 시간 미확인"}
+                            </span>
                             <span className="job-link">
                               {p
                                 ? isCompleted(p)
@@ -1664,7 +1791,96 @@ export default function Lab() {
             <h1>나의 기록</h1>
             <p>직접 해본 일과 다음에 해볼 일을 모았어요.</p>
           </div>
-          {!recorded.length ? (
+          {!!inProgress.length && (
+            <section
+              className="experience-section"
+              aria-labelledby="in-progress-heading"
+            >
+              <h2 id="in-progress-heading">이어서 해볼 코드 체험</h2>
+              <div className="record-grid">
+                {inProgress.map((m) => {
+                  const p = state.progress[m.id]!;
+                  return (
+                    <article className="record-card" key={m.id}>
+                      <div className="record-top">
+                        <span>{m.title} · 진행 중</span>
+                      </div>
+                      <h3>{m.action}</h3>
+                      <p>
+                        실행 {p.runs}회 ·{" "}
+                        {p.runs
+                          ? "회고를 남기면 완료 기록이 돼요."
+                          : "코드를 수정하고 실행해보세요."}
+                      </p>
+                      <p className="record-execution">
+                        마지막 수정 {formatTime(p.updatedAt)}
+                      </p>
+                      <button
+                        className="btn primary compact"
+                        onClick={() => openWork(m.id)}
+                      >
+                        이어서 하기 <ChevronRight size={16} />
+                      </button>
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+          {!!playedGames.length && (
+            <section
+              className="experience-section"
+              aria-labelledby="game-records-heading"
+            >
+              <h2 id="game-records-heading">코드 없이 해본 게임</h2>
+              <p>
+                게임에서 느낀 흥미예요. 코드 체험의 완료·회고와 따로 기록해요.
+              </p>
+              <div className="record-grid">
+                {playedGames.map((m) => {
+                  const g = state.games![m.id]!;
+                  return (
+                    <article className="record-card" key={m.id}>
+                      <div className="record-top">
+                        <span>{m.title} · 게임 완료</span>
+                        <small>
+                          {new Date(g.completedAt).toLocaleDateString("ko-KR")}
+                        </small>
+                      </div>
+                      <h3>{m.title} 업무 맛보기</h3>
+                      <p>
+                        흥미{" "}
+                        {g.interest
+                          ? `${g.interest}/5`
+                          : "아직 평가하지 않았어요"}
+                      </p>
+                      <div className="experience-actions">
+                        <button
+                          className="btn primary compact"
+                          onClick={() => start(m.id)}
+                        >
+                          같은 직무 코드 체험
+                        </button>
+                        <Link
+                          className="btn secondary compact"
+                          href={`/games?track=${m.id}`}
+                        >
+                          게임·흥미 평가 열기
+                        </Link>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+              <button
+                className="btn secondary"
+                onClick={() => navigate("compare")}
+              >
+                게임 흥미 비교하기
+              </button>
+            </section>
+          )}
+          {!recorded.length && !inProgress.length && !playedGames.length ? (
             <div className="empty-state">
               <FolderOpen size={42} />
               <h2>아직 남긴 회고가 없어요</h2>
@@ -1678,91 +1894,104 @@ export default function Lab() {
               </button>
             </div>
           ) : (
-            <>
-              <div className="record-grid">
-                {recorded.map((m) => {
-                  const p = state.progress[m.id]!,
-                    r = p.reflection!;
-                  return (
-                    <article className="record-card" key={m.id}>
-                      <div className={`record-icon ${m.color}`}>
-                        <TrackIcon id={m.id} />
-                      </div>
-                      <div className="record-top">
-                        <span>
-                          {m.title} · {recordStatus(p)}
-                        </span>
-                        <small>
-                          {new Date(r.endedAt).toLocaleDateString("ko-KR")}
-                        </small>
-                      </div>
-                      <h2>{m.action}</h2>
-                      <div className="score-summary">
-                        <span>
-                          흥미 <b>{r.interest}/5</b>
-                        </span>
-                        <span>
-                          체감 난이도 <b>{r.difficulty}/5</b>
-                        </span>
-                        <span>
-                          다시 해보고 싶음 <b>{r.again}/5</b>
-                        </span>
-                      </div>
-                      {r.execution && (
-                        <p className="record-execution">
-                          {r.execution.contentVersion
-                            ? `과제 ${r.execution.contentVersion} · `
-                            : "과제 기준 미확인 · "}
-                          기록한 실행:{" "}
-                          {
-                            r.execution.result.tests.filter((t) => t.passed)
-                              .length
-                          }
-                          /{r.execution.result.tests.length} 통과 ·{" "}
-                          {new Date(r.execution.executedAt).toLocaleString(
-                            "ko-KR",
-                          )}
-                        </p>
-                      )}
-                      <p className="record-note">{r.note}</p>
-                      <div className="next-action">
-                        <span>다음에 해볼 일</span>
-                        <b>{r.next}</b>
-                        {r.nextPlan && (
-                          <>
-                            <p className="next-plan-reason">
-                              선택 당시 제안: {r.nextPlan.reason}
-                            </p>
-                            <p className="next-plan-choice">
-                              내 선택 이유: {r.nextPlan.selectionReason}
-                            </p>
-                          </>
+            !!recorded.length && (
+              <>
+                <div className="record-grid">
+                  {recorded.map((m) => {
+                    const p = state.progress[m.id]!,
+                      r = p.reflection!;
+                    return (
+                      <article className="record-card" key={m.id}>
+                        <div className={`record-icon ${m.color}`}>
+                          <TrackIcon id={m.id} />
+                        </div>
+                        <div className="record-top">
+                          <span>
+                            {m.title} · {recordStatus(p)}
+                          </span>
+                          <small>
+                            {new Date(r.endedAt).toLocaleDateString("ko-KR")}
+                          </small>
+                        </div>
+                        <h2>{m.action}</h2>
+                        <div className="score-summary">
+                          <span>
+                            흥미 <b>{r.interest}/5</b>
+                          </span>
+                          <span>
+                            체감 난이도 <b>{r.difficulty}/5</b>
+                          </span>
+                          <span>
+                            다시 해보고 싶음 <b>{r.again}/5</b>
+                          </span>
+                        </div>
+                        {r.execution && (
+                          <p className="record-execution">
+                            {r.execution.contentVersion
+                              ? `과제 ${r.execution.contentVersion} · `
+                              : "과제 기준 미확인 · "}
+                            기록한 실행:{" "}
+                            {
+                              r.execution.result.tests.filter((t) => t.passed)
+                                .length
+                            }
+                            /{r.execution.result.tests.length} 통과 ·{" "}
+                            {new Date(r.execution.executedAt).toLocaleString(
+                              "ko-KR",
+                            )}
+                          </p>
                         )}
-                      </div>
-                      <div className="record-foot">
-                        <small>
-                          실행 {p.runs}회 · 힌트 {p.hintLevel}단계
-                          {p.usedSolution ? " · 참고 풀이 열람" : ""}
-                        </small>
-                        <button
-                          className="text-button"
-                          onClick={() => openWork(m.id)}
-                        >
-                          다시 열기
-                          <ChevronRight size={16} />
-                        </button>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-              <button
-                className="btn primary"
-                onClick={() => navigate("compare")}
-              >
-                체험 비교하기
-              </button>
-            </>
+                        <p className="record-note">{r.note}</p>
+                        <div className="next-action">
+                          <span>다음에 해볼 일</span>
+                          <b>{r.next}</b>
+                          {r.nextPlan && (
+                            <>
+                              <p className="next-plan-reason">
+                                선택 당시 제안: {r.nextPlan.reason}
+                              </p>
+                              <p className="next-plan-choice">
+                                내 선택 이유: {r.nextPlan.selectionReason}
+                              </p>
+                            </>
+                          )}
+                          {selectedActivity(r) && (
+                            <Link
+                              className="btn primary compact"
+                              href={activityHref(selectedActivity(r)!)}
+                            >
+                              {selectedActivity(r)!.kind === "explore"
+                                ? "선택한 직무 체험하기"
+                                : "선택한 활동 안내 보기"}{" "}
+                              <ChevronRight size={16} />
+                            </Link>
+                          )}
+                        </div>
+                        <div className="record-foot">
+                          <small>
+                            실행 {p.runs}회 · 힌트 {p.hintLevel}단계
+                            {p.usedSolution ? " · 참고 풀이 열람" : ""}
+                          </small>
+                          <button
+                            className="text-button"
+                            onClick={() => openWork(m.id)}
+                          >
+                            다시 열기
+                            <ChevronRight size={16} />
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+                <button
+                  className="btn primary"
+                  onClick={() => navigate("compare")}
+                >
+                  체험 비교하기
+                </button>
+              </>
+            )
           )}
           <section className="record-settings">
             <div>
@@ -1791,9 +2020,9 @@ export default function Lab() {
                   초안과 이어하기 정보도 사라져요.
                 </p>
                 <p>
-                  전체 삭제는 코드·회고·사전 응답·AI 호출 정보를 지워요. 재저장
-                  방지용 익명 표시만 30일, 오늘의 AI 사용 횟수는 하루 동안
-                  유지해요.
+                  전체 삭제는 코드·회고·게임 완료·흥미 평가·사전 응답·AI 호출
+                  정보를 지워요. 재저장 방지용 익명 표시만 30일, 오늘의 AI 사용
+                  횟수는 하루 동안 유지해요.
                 </p>
               </details>
             </div>
@@ -1817,6 +2046,50 @@ export default function Lab() {
             <h1>체험 비교</h1>
             <p>어떤 일이 재미있었는지, 내 회고를 나란히 살펴봐요.</p>
           </div>
+          {!!playedGames.length && (
+            <section
+              className="experience-section"
+              aria-labelledby="game-comparison-heading"
+            >
+              <h2 id="game-comparison-heading">게임에서 느낀 흥미</h2>
+              <p>
+                코드 없이 해본 경험끼리 비교해요. 미평가는 점수에 포함하지
+                않아요.
+              </p>
+              <div className="compare-table-wrap">
+                <table className="compare-table">
+                  <thead>
+                    <tr>
+                      <th>직무 게임</th>
+                      <th>흥미</th>
+                      <th>다음 경험</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {playedGames.map((m) => (
+                      <tr key={m.id}>
+                        <th>{m.title}</th>
+                        <td>
+                          {state.games![m.id]!.interest
+                            ? `${state.games![m.id]!.interest} / 5`
+                            : "미평가"}
+                        </td>
+                        <td>
+                          <button
+                            className="text-button"
+                            onClick={() => start(m.id)}
+                          >
+                            코드로도 해보기 <ChevronRight size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+          <h2>코드 체험 회고 비교</h2>
           {completed.length < 2 ? (
             <div className="empty-state">
               <ChartNoAxesCombined size={42} />
@@ -1928,6 +2201,17 @@ export default function Lab() {
                             {missions.find((m) => m.id === id)!.title}
                           </strong>
                           <span>{saved.next}</span>
+                          {selectedActivity(saved) && (
+                            <Link
+                              className="text-button"
+                              href={activityHref(selectedActivity(saved)!)}
+                            >
+                              {selectedActivity(saved)!.kind === "explore"
+                                ? "선택한 직무 체험하기"
+                                : "선택한 활동 안내 보기"}{" "}
+                              <ChevronRight size={16} />
+                            </Link>
+                          )}
                           {saved.nextPlan && (
                             <small>
                               내 선택 이유: {saved.nextPlan.selectionReason}
@@ -2115,6 +2399,13 @@ export default function Lab() {
                     high="다시 해보고 싶어요"
                   />
                 </div>
+                <p
+                  className="reflection-context-guide"
+                  id="reflection-context-guide"
+                >
+                  흥미와 어려움은 따로 답해요. 문법이 낯설었는지, 작업의 조건을
+                  판단하는 일이 어려웠는지도 적어주세요.
+                </p>
                 <label className="form-label">
                   {active === "data"
                     ? "눈여겨본 수치와 다음 행사 개선안"
@@ -2122,6 +2413,7 @@ export default function Lab() {
                   <textarea
                     rows={3}
                     maxLength={2000}
+                    aria-describedby="reflection-context-guide"
                     value={reflection.note}
                     onChange={(e) =>
                       setReflection((r) => ({ ...r, note: e.target.value }))

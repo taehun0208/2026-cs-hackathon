@@ -14,6 +14,15 @@ import {
   type createMissionCatalog,
 } from "./mission-catalog.ts";
 import type { LabStorage } from "./storage.ts";
+import {
+  budgetPolicy,
+  reservationUnits,
+  usageUnits,
+  validUsage,
+  MAX_PROVIDER_PAYLOAD_BYTES,
+  COACH_OUTPUT_TOKENS,
+  warnBudget,
+} from "./ai-budget.ts";
 
 export const coachInput = z
   .object({
@@ -42,6 +51,7 @@ type CoachConfig = {
   fetcher?: typeof fetch;
   signal?: AbortSignal;
   timeoutMs?: number;
+  budgetEnv?: Record<string, string | undefined>;
   catalog?: Pick<ReturnType<typeof createMissionCatalog>, "resolve">;
 };
 
@@ -84,11 +94,43 @@ export async function getHint(
           return guide("AI 연결 전이에요. 기본 힌트를 보여드려요.");
         if (!saved?.state.profile?.aiConsent)
           return guide("AI 사용에 동의한 뒤 질문해주세요.");
+        const policy = budgetPolicy(
+          config.model,
+          config.budgetEnv ?? process.env,
+        );
+        if (!policy) {
+          warnBudget({ reason: "configuration" });
+          return guide(
+            "AI 비용 설정을 확인하는 중이에요. 기본 힌트를 이용해주세요.",
+          );
+        }
         if (!(await abortable(storage.reserve(owner, body.track), signal)))
           return guide(
             "오늘의 AI 사용 한도에 도달했어요. 기본 힌트를 이용해주세요.",
           );
+        let lease;
+        try {
+          lease = await abortable(
+            storage.reserveAiBudget(
+              crypto.randomUUID(),
+              reservationUnits(policy),
+              policy,
+            ),
+            signal,
+          );
+        } catch {
+          warnBudget({ reason: "storage_unavailable" });
+          return guide(
+            "AI 비용 한도를 확인하지 못했어요. 기본 힌트를 이용해주세요.",
+          );
+        }
+        if (!lease)
+          return guide(
+            "AI 운영 예산 한도에 도달했어요. 기본 힌트를 이용해주세요.",
+          );
         const started = Date.now();
+        let sentRequests = 0,
+          confirmedRequests = 0;
         let inputTokens = 0,
           outputTokens = 0,
           outcome = "upstream_error";
@@ -170,6 +212,23 @@ export async function getHint(
                 }),
               });
             }
+            const payload = JSON.stringify({
+              model: config.model,
+              response_format: { type: "json_object" },
+              max_completion_tokens: COACH_OUTPUT_TOKENS,
+              service_tier: "default",
+              messages,
+              tools,
+              tool_choice:
+                round < 2
+                  ? { type: "function", function: { name: toolNames[round] } }
+                  : "none",
+              parallel_tool_calls: false,
+            });
+            if (Buffer.byteLength(payload, "utf8") > MAX_PROVIDER_PAYLOAD_BYTES)
+              throw new Error("BUDGET_PAYLOAD_LIMIT");
+            signal.throwIfAborted();
+            sentRequests++;
             const response = await abortable(
               (config.fetcher ?? fetch)(
                 "https://api.openai.com/v1/chat/completions",
@@ -180,21 +239,7 @@ export async function getHint(
                     "Content-Type": "application/json",
                   },
                   signal,
-                  body: JSON.stringify({
-                    model: config.model,
-                    response_format: { type: "json_object" },
-                    max_completion_tokens: 500,
-                    messages,
-                    tools,
-                    tool_choice:
-                      round < 2
-                        ? {
-                            type: "function",
-                            function: { name: toolNames[round] },
-                          }
-                        : "none",
-                    parallel_tool_calls: false,
-                  }),
+                  body: payload,
                 },
               ),
               signal,
@@ -218,14 +263,11 @@ export async function getHint(
               }[];
               usage?: { prompt_tokens?: number; completion_tokens?: number };
             };
-            inputTokens += Math.max(
-              0,
-              Math.floor(data.usage?.prompt_tokens ?? 0),
-            );
-            outputTokens += Math.max(
-              0,
-              Math.floor(data.usage?.completion_tokens ?? 0),
-            );
+            if (validUsage(data.usage)) {
+              inputTokens += data.usage.prompt_tokens;
+              outputTokens += data.usage.completion_tokens;
+              confirmedRequests++;
+            }
             const message = data.choices?.[0]?.message;
             if (!message) throw new Error("NO_MESSAGE");
             if (!message.tool_calls?.length) {
@@ -329,6 +371,20 @@ export async function getHint(
           outcome = "request_failed";
           return guide("AI 응답을 확인하지 못했어요. 기본 힌트를 보여드려요.");
         } finally {
+          // Unknown outcomes retain the full hold. No timeout-based release: the
+          // provider may have processed a request after this process stopped waiting.
+          if (sentRequests !== confirmedRequests)
+            warnBudget({ reason: "usage_unconfirmed" });
+          const actual =
+            sentRequests === confirmedRequests
+              ? usageUnits(policy, inputTokens, outputTokens)
+              : null;
+          let accountingConfirmed = true;
+          await abortable(storage.finishAiBudget(lease, actual), signal).catch(
+            () => {
+              accountingConfirmed = false;
+            },
+          );
           // Never log learner code, questions, provider payloads, or credentials.
           await abortable(
             storage.logUsage({
@@ -337,10 +393,19 @@ export async function getHint(
               inputTokens,
               outputTokens,
               latencyMs: Date.now() - started,
-              outcome,
+              outcome:
+                sentRequests === confirmedRequests
+                  ? outcome
+                  : `${outcome}_usage_unconfirmed`,
             }),
             signal,
           ).catch(() => {});
+          if (!accountingConfirmed) {
+            warnBudget({ reason: "settlement_unconfirmed" });
+            return guide(
+              "AI 비용 기록을 확인하지 못했어요. 기본 힌트를 보여드려요.",
+            );
+          }
         }
       },
       { signal: config.signal, timeoutMs: config.timeoutMs },

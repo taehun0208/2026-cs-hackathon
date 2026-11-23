@@ -1,14 +1,23 @@
 import fs from "node:fs";
 import { summarizeAnalytics } from "../lib/analytics-report.ts";
 const args = process.argv.slice(2);
+if (args.includes("--help")) {
+  console.log(`Usage: node scripts/report-analytics.mjs [--input rows.json] [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--cohort all|pilot|prepilot|general] [--include-qa]
+
+all: ordinary use and the formal P01–P12 pilot, excluding S01–S03 prepilot data.
+pilot: formal P01–P12 pilot only. prepilot: S01–S03 only. general: ordinary use only.
+QA is excluded unless --include-qa is explicit; it still does not join a pilot cohort.
+UTC until is exclusive. Outputs aggregates only, with prepilot exclusion counts.`);
+  process.exit(0);
+}
 const value = (name) => {
   const i = args.indexOf(name);
   return i >= 0 ? args[i + 1] : undefined;
 };
 const input = value("--input"),
   cohort = value("--cohort") ?? "all";
-if (!["all", "pilot", "general"].includes(cohort))
-  throw new Error("cohort must be all, pilot, or general");
+if (!["all", "pilot", "prepilot", "general"].includes(cohort))
+  throw new Error("cohort must be all, pilot, prepilot, or general");
 let rows;
 if (input) rows = JSON.parse(fs.readFileSync(input, "utf8"));
 else {

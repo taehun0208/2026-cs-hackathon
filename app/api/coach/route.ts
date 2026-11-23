@@ -6,11 +6,19 @@ import {
   sameOrigin,
 } from "../../../lib/server";
 import { coachInput, getHint, MissionContentError } from "../../../lib/coach";
+import { budgetPolicy, reservationUnits } from "../../../lib/ai-budget";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 export async function GET() {
-  return json({ available: !!process.env.OPENAI_API_KEY });
+  const policy = budgetPolicy(process.env.OPENAI_MODEL ?? "gpt-4.1-mini");
+  return json({
+    available:
+      !!process.env.OPENAI_API_KEY &&
+      !!policy &&
+      policy.dailyUnits >= reservationUnits(policy) &&
+      policy.monthlyUnits >= reservationUnits(policy),
+  });
 }
 export async function POST(req: Request) {
   if (!sameOrigin(req))

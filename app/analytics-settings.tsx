@@ -97,7 +97,11 @@ export function AnalyticsSettings({
           <option value="">일반 참여</option>
           {pilotCodes.map((c) => (
             <option key={c} value={c}>
-              {c === "QA" ? "QA · 진행자 점검용" : c}
+              {c === "QA"
+                ? "QA · 진행자 점검용"
+                : c.startsWith("S")
+                  ? `${c} · 3명 예비테스트`
+                  : `${c} · 12명 파일럿`}
             </option>
           ))}
         </select>

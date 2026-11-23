@@ -2,6 +2,8 @@
 // in-memory evaluation records only, never reads or mutates a learner's DB.
 import { writeFile, mkdir, readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
+import { DatabaseSync } from "node:sqlite";
+import { createAiBudgetStorage } from "../lib/ai-budget-store.ts";
 import { getHint } from "../lib/coach.ts";
 import { coachGuides } from "../lib/coach-guides.ts";
 import { missionById } from "../lib/missions.ts";
@@ -34,7 +36,18 @@ const cases = Array.from({ length: repeat }, (_, i) =>
 const rows = [],
   usage = [],
   reservations = new Map();
+const budgetDb = new DatabaseSync(":memory:");
+budgetDb.exec(
+  await readFile(
+    new URL("../migrations/003_ai_budget.sql", import.meta.url),
+    "utf8",
+  ),
+);
+const evalBudget = createAiBudgetStorage(async (text, values) =>
+  budgetDb.prepare(text.replace(/\$\d+/g, "?")).all(...values),
+);
 const storage = {
+  ...evalBudget,
   read: async () => ({ state: { profile: { aiConsent: true } } }),
   reserve: async (owner, track) => {
     const key = `${owner}:${track}`,
@@ -53,6 +66,8 @@ const digest = async (paths) => {
 };
 const implementationPaths = [
   "../lib/coach.ts",
+  "../lib/ai-budget.ts",
+  "../lib/ai-budget-store.ts",
   "../lib/coach-guides.ts",
   "../lib/coach-routing.ts",
   "../lib/missions.ts",
@@ -124,7 +139,7 @@ const report = {
   fallbackCount: rows.filter((r) => r.source === "guide").length,
   inputTokens: usage.reduce((n, u) => n + u.inputTokens, 0),
   outputTokens: usage.reduce((n, u) => n + u.outputTokens, 0),
-  note: "Synthetic fixtures only. Safe fallback is not counted as successful model selection. No raw provider response, learner data or credential is recorded. This single run does not guarantee future relevance.",
+  note: "This process uses an isolated in-memory daily/monthly budget and does not share the production ledger. Synthetic fixtures only. Safe fallback is not counted as successful model selection. No raw provider response, learner data or credential is recorded. This single run does not guarantee future relevance.",
   cases: rows,
 };
 await mkdir(new URL("../docs/evals/", import.meta.url), { recursive: true });

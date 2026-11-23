@@ -1,6 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createPersistence, DRAFT_KEY, readDraft } from "../lib/persistence.ts";
+import {
+  createPersistence,
+  DRAFT_KEY,
+  PENDING_PREFIX,
+  readDraft,
+  isRecordReset,
+} from "../lib/persistence.ts";
 import { initialProgress, missions } from "../lib/missions.ts";
 import { storageDates, RETENTION_MS } from "../lib/retention.ts";
 const empty = () => ({ version: 1, progress: {} });
@@ -26,6 +32,10 @@ function fixture(fetcher, draft, overrides = {}) {
   let state, status;
   const controller = createPersistence({
     storage: {
+      get length() {
+        return memory.size;
+      },
+      key: (index) => [...memory.keys()][index] ?? null,
       getItem: (k) => memory.get(k) ?? null,
       setItem: (k, v) => memory.set(k, v),
       removeItem: (k) => memory.delete(k),
@@ -139,11 +149,17 @@ test("offline loading permits local edits but checks the server again before upl
   f.controller.dispose();
 });
 test("storage quota failures stay visible instead of falsely claiming a local backup", async () => {
+  const session = new Map();
   const f = fixture(
     async (o) =>
       o.method === "GET" ? remote() : Response.json({}, { status: 503 }),
     null,
     {
+      tabStorage: {
+        getItem: (key) => session.get(key) ?? null,
+        setItem: (key, value) => session.set(key, value),
+        removeItem: (key) => session.delete(key),
+      },
       storage: {
         setItem() {
           throw new Error("quota");
@@ -157,6 +173,34 @@ test("storage quota failures stay visible instead of falsely claiming a local ba
   assert.equal(f.status.localSaved, false);
   assert.equal(f.status.phase, "error");
   assert.equal(f.memory.size, 0);
+  assert.ok(session.has(DRAFT_KEY));
+  f.controller.dispose();
+});
+
+test("deleting records removes drafts from closed tabs and broadcasts without a shared cache", async () => {
+  const signals = [];
+  const f = fixture(
+    async (o) =>
+      o.method === "GET" ? remote() : Response.json({ deleted: true }),
+    null,
+    {
+      storage: {
+        setItem: (key, newValue) => {
+          signals.push({ key, newValue });
+        },
+      },
+    },
+  );
+  await f.controller.load();
+  f.memory.set(
+    `${PENDING_PREFIX}closed-tab`,
+    JSON.stringify({ format: 2, state: work(), dirty: true }),
+  );
+  assert.equal(await f.controller.remove(), true);
+  assert.equal(f.memory.size, 0);
+  assert.ok(signals.some(isRecordReset));
+  await f.controller.load();
+  assert.equal(f.status.phase, "idle");
   f.controller.dispose();
 });
 test("a content conflict keeps the local draft and stops automatic overwrites", async () => {
@@ -170,7 +214,7 @@ test("a content conflict keeps the local draft and stops automatic overwrites", 
   await assert.rejects(f.controller.saveNow());
   assert.equal(f.status.phase, "conflict");
   assert.equal(f.status.ready, false);
-  assert.equal(f.memory.size, 1);
+  assert.equal(f.memory.size, 2);
   await assert.rejects(f.controller.saveNow());
   assert.deepEqual(f.calls, ["GET", "POST"]);
   f.controller.dispose();

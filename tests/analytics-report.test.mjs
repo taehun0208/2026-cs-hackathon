@@ -158,7 +158,7 @@ test("pilot templates have twelve planned participants, two opposite-order expos
       "utf8",
     )
     .trim()
-    .split("\n");
+    .split(/\r?\n/);
   assert.equal(csv.length, 13);
   assert.match(csv[1], /^"P01"/);
   assert.ok(
@@ -173,7 +173,7 @@ test("pilot templates have twelve planned participants, two opposite-order expos
         "utf8",
       )
       .trim()
-      .split("\n").length,
+      .split(/\r?\n/).length,
     25,
   );
   assert.equal(
@@ -183,7 +183,7 @@ test("pilot templates have twelve planned participants, two opposite-order expos
         "utf8",
       )
       .trim()
-      .split("\n").length,
+      .split(/\r?\n/).length,
     13,
   );
 });

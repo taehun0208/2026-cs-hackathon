@@ -17,6 +17,12 @@ function fixture() {
       "utf8",
     ),
   );
+  db.exec(
+    readFileSync(
+      new URL("../migrations/003_ai_budget.sql", import.meta.url),
+      "utf8",
+    ),
+  );
   const store = createStorage(async (text, values) =>
     db
       .prepare(text.replace(/ FOR UPDATE/g, "").replace(/\$\d+/g, "?"))
@@ -161,6 +167,7 @@ test("scheduled cleanup removes unattended expired states, calls and previous UT
     events: 0,
     preferences: 0,
     analyticsUsage: 0,
+    budgetLedgers: 0,
   });
   assert.deepEqual(await store.cleanup(), {
     states: 0,
@@ -169,6 +176,7 @@ test("scheduled cleanup removes unattended expired states, calls and previous UT
     events: 0,
     preferences: 0,
     analyticsUsage: 0,
+    budgetLedgers: 0,
   });
   assert.equal(
     db.prepare("SELECT owner_key FROM lab_states").get().owner_key,

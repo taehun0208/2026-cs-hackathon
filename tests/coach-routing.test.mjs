@@ -1,3 +1,4 @@
+import { budgetFixture } from "./helpers/budget-fixture.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { missionById } from "../lib/missions.ts";
@@ -10,6 +11,7 @@ const inspected = new Set(["read_mission", "inspect_checks"]);
 const storage = () => ({
   read: async () => ({ state: { profile: { aiConsent: true } } }),
   reserve: async () => true,
+  ...budgetFixture(),
   logUsage: async () => {},
 });
 const provider = (choice, inspect = () => {}) => {
@@ -50,7 +52,11 @@ const ask = (track, question, choice, tests = [], inspect) => {
     },
     "routing-fixture",
     storage(),
-    { apiKey: "fixture", model: "fixture", fetcher: provider(choice, inspect) },
+    {
+      apiKey: "fixture",
+      model: "gpt-4.1-mini",
+      fetcher: provider(choice, inspect),
+    },
   );
 };
 test("seven former mismatches use complete rule guidance even alongside similar reported checks", async () => {

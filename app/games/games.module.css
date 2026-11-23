@@ -413,6 +413,38 @@
     padding: 24px;
   }
 }
+.rating {
+  border: 0;
+  padding: 0;
+  margin: 24px 0;
+}
+.rating legend {
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.rating div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.rating label {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  cursor: pointer;
+}
+.rating label:has(input:checked) {
+  background: #e1f3ee;
+  border-color: var(--teal);
+}
+.rating input {
+  accent-color: var(--teal);
+}
+.rating small {
+  color: #536174;
+  font-weight: 400;
+}
 @media (max-width: 740px) {
   .main {
     padding-block: 36px 56px;

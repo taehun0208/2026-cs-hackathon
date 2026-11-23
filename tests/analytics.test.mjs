@@ -30,7 +30,11 @@ const event = (
 });
 function fixture() {
   const db = new DatabaseSync(":memory:");
-  for (const file of ["001_initial.sql", "002_analytics.sql"])
+  for (const file of [
+    "001_initial.sql",
+    "002_analytics.sql",
+    "003_ai_budget.sql",
+  ])
     db.exec(
       fs.readFileSync(
         new URL("../migrations/" + file, import.meta.url),
