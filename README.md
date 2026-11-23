@@ -53,16 +53,17 @@
 Node.js 24 환경에서 실행합니다.
 
 ```sh
+git clone https://github.com/taehun0208/2026-cs-hackathon.git
+cd 2026-cs-hackathon
 npm ci
 npm run dev
 ```
 
 기본 주소는 `http://127.0.0.1:3000`입니다. DB 설정이 없는 로컬 개발에서는 `.local/lab.sqlite`를 사용합니다. 실제 배포에는 Neon이 필요합니다.
 
-`.env.example`을 참고해 비밀 설정을 **Git에서 제외된 `.env.local`** 에 준비합니다. 실제 키나 DB 주소를 소스에 넣지 않습니다.
+로컬에서는 별도 키·DB 없이 저장과 기본 힌트를 확인할 수 있습니다. 외부 DB·AI를 연결할 때만 `.env.example`을 복사해 **Git에서 제외된 `.env.local`** 에 준비합니다. 실제 키나 DB 주소를 소스에 넣지 않습니다.
 
 ```sh
-npm run db:migrate
 npm test
 npm run typecheck
 npm run build
@@ -70,13 +71,17 @@ npm run build
 
 ## 배포
 
-Vercel의 Next.js 프로젝트에 Neon 저장소를 연결합니다. 마이그레이션은 연결된 DB를 대상으로 한 번 실행합니다.
+팀원은 공개 저장소를 자기 GitHub 계정으로 Fork하고 본인 Vercel 프로젝트에서 배포할 수 있습니다. 기존 Hobby 프로젝트의 배포 권한과는 별개입니다. [팀원 실행·무료 배포·권한 오류 안내](docs/TEAM-DEVELOPMENT.md)에 환경 분리와 확인 순서를 정리했습니다.
+
+Vercel의 Next.js 프로젝트에 별도 Neon 저장소를 연결합니다. 서버 환경 변수를 설정한 뒤, 해당 DB를 대상으로 `npm run db:migrate`를 한 번 실행합니다. 로컬 SQLite는 자동 준비되므로 이 명령이 필요 없습니다.
 
 | 서버 환경 변수   | 용도                                   |
 | ---------------- | -------------------------------------- |
 | `DATABASE_URL`   | Neon 연결 주소 (`POSTGRES_URL`도 지원) |
 | `OPENAI_API_KEY` | OpenAI 서버 전용 API 키                |
 | `OPENAI_MODEL`   | 기본값 `gpt-4.1-mini`                  |
+| `AI_DAILY_BUDGET_USD` / `AI_MONTHLY_BUDGET_USD` | UTC 일·월별 앱 AI 예산. 예시는 1 / 10 USD, 0은 AI 중단 |
+| `CRON_SECRET` | 만료 자료 정리용 서버 비밀 값. Production에 32자 이상 설정 |
 
 ```sh
 vercel link
@@ -85,7 +90,7 @@ vercel --prod
 
 브랜치는 `develop`에서 작업하고 PR 검증 후 `main`에 병합합니다. `main`이 배포 기준이며 Vercel GitHub 연동으로 자동 배포합니다.
 
-현재 연결한 API 키는 선택한 설정에 따라 30일 후 만료됩니다. 계속 운영하려면 만료 전에 Vercel의 서버 비밀 설정을 교체해야 합니다.
+환경 변수를 바꾼 뒤에는 새로 배포해야 적용됩니다. API 키의 만료·잔액·사용량은 해당 프로젝트 운영자가 확인하고, 교체 값은 서버 비밀 설정에만 보관합니다.
 
 실행한 코드의 해시·입력·결과·시각·콘텐츠 버전을 회고에 연결합니다. 참고 풀이만 실행한 경우는 완료로 세지 않으며, 이후 직접 수정하고 실행하면 정상 기록할 수 있습니다. 기존 회고는 보존하고 실행 근거가 없으면 미확인으로 구분합니다.
 
