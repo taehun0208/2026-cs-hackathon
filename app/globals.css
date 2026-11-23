@@ -3286,7 +3286,7 @@ nav > button.active:after {
   font-size: 14px;
 }
 .experience-path li::marker {
-  color: var(--blue);
+  color: var(--secondary);
   font-weight: 650;
 }
 .welcome-prerequisite {
@@ -3359,4 +3359,110 @@ summary {
   display: inline-block;
   min-height: 24px;
   line-height: 24px;
+}
+
+/* 게임 페이지도 체험실과 같은 탭 헤더를 써요. */
+.nav-inner nav > a {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 15px;
+  font-weight: 550;
+  color: var(--secondary);
+}
+.nav-inner nav > a.active {
+  color: var(--ink);
+  font-weight: 700;
+}
+.nav-inner nav > a.active::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--blue);
+}
+.game-header .nav-end,
+.game-header .save-state {
+  margin-left: auto;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+/* 코드가 낯선 사람을 위한 게임 입구 */
+.games-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding: 18px 24px;
+  border: 1px solid #d6dce6;
+  border-radius: 16px;
+  background: white;
+  color: var(--ink);
+  text-decoration: none;
+}
+.games-entry:hover {
+  background: #f7f9fc;
+}
+.games-entry small {
+  display: block;
+  color: var(--secondary);
+  font-size: 13px;
+}
+.games-entry strong {
+  font-size: 17px;
+}
+.games-entry-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--blue);
+  font-size: 14px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.games-entry:focus-visible {
+  outline: 3px solid var(--blue);
+  outline-offset: 2px;
+}
+/* 비활성인 체험 기록 버튼의 이유 */
+.reflect-action {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.reflect-hint {
+  color: var(--secondary);
+  font-size: 13px;
+}
+@media (max-width: 760px) {
+  .games-entry {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .nav-inner nav > a {
+    min-height: 44px;
+  }
+}
+@media (max-width: 760px) {
+  .game-header .nav-inner nav {
+    order: 3;
+    display: flex;
+    width: 100%;
+    justify-content: space-between;
+    gap: 0;
+  }
+  .game-header .nav-inner .save-state {
+    order: 2;
+  }
 }
