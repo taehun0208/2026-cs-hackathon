@@ -889,6 +889,7 @@ export default function Lab({
                 )}
               </button>
             ))}
+            <Link href="/games">게임</Link>
           </nav>
           <div className="nav-end">
             <button className="guide-link" onClick={() => navigate("guide")}>
@@ -1044,10 +1045,18 @@ export default function Lab({
               <li>다음 학습 고르기</li>
             </ol>
             <p className="welcome-prerequisite">
-              JavaScript 기초가 있다면 한 줄 수정부터 시작해요.{" "}
-              <Link href="/games">코드가 낯설면 게임으로 둘러보기</Link>
+              JavaScript 기초가 있다면 한 줄 수정부터 시작해요.
             </p>
           </section>
+          <Link className="games-entry" href="/games">
+            <span>
+              <small>코드가 낯설다면</small>
+              <strong>코드 없이 게임으로 6개 직무 둘러보기</strong>
+            </span>
+            <span className="games-entry-go">
+              게임 하러 가기 <ChevronRight size={16} />
+            </span>
+          </Link>
           {resumeMission && (
             <section className="resume-panel" aria-label="진행 중인 체험">
               <span className="resume-icon">
@@ -1226,13 +1235,21 @@ export default function Lab({
                 {mission.time}
               </p>
             </div>
-            <button
-              className="btn secondary"
-              disabled={!hasAttempt || running}
-              onClick={openReflection}
-            >
-              <CheckCheck size={18} /> 체험 기록
-            </button>
+            <div className="reflect-action">
+              {!hasAttempt && (
+                <span className="reflect-hint" id="reflect-hint">
+                  코드를 실행하면 열려요
+                </span>
+              )}
+              <button
+                className="btn secondary"
+                disabled={!hasAttempt || running}
+                aria-describedby={!hasAttempt ? "reflect-hint" : undefined}
+                onClick={openReflection}
+              >
+                <CheckCheck size={18} /> 체험 기록
+              </button>
+            </div>
           </div>
           <ol className="work-journey" aria-label="체험 순서">
             <li className={progress.runs ? "done" : "current"}>

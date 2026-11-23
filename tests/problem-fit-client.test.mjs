@@ -33,7 +33,7 @@ test("a student can distinguish a failed check from interest and save a concrete
     /JavaScript 기초/,
   );
   assert.equal(
-    document.querySelector(".welcome-prerequisite a").getAttribute("href"),
+    document.querySelector("a.games-entry").getAttribute("href"),
     "/games",
   );
   await f.click("프론트엔드 이어서 해보기");

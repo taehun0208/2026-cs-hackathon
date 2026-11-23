@@ -199,14 +199,33 @@ export default function GameLab({ initialTrack }: { initialTrack?: TrackId }) {
             </span>
             <span>해보기</span>
           </Link>
-          <Link className="btn secondary compact" href="/">
-            코드 체험하기
-          </Link>
-          <Link className="btn secondary compact" href="/?view=journal">
-            나의 기록
-          </Link>
+          <nav aria-label="주 메뉴">
+            <Link href="/">체험실</Link>
+            <Link href="/?view=journal">나의 기록</Link>
+            <Link href="/?view=compare">비교하기</Link>
+            <Link href="/games" aria-current="page" className="active">
+              게임
+            </Link>
+          </nav>
+          <span className={`save-state ${status.phase}`} aria-live="polite">
+            {
+              {
+                loading: "불러오는 중",
+                idle: "새 체험",
+                saving: "저장 중",
+                saved: "저장됨",
+                error: "저장 실패",
+                recovery: "초안 확인",
+                conflict: "기록 확인 필요",
+                deleting: "삭제 중",
+              }[status.phase]
+            }
+          </span>
         </div>
       </header>
+      {(!["idle", "saved"].includes(status.phase) ||
+        !!status.pendingDrafts ||
+        (status.phase === "saved" && !status.localSaved)) && (
       <section
         className={`storage-banner ${["error", "recovery", "conflict"].includes(status.phase) ? "" : "game-save-status"}`}
         aria-label="게임 기록 저장 안내"
@@ -300,6 +319,7 @@ export default function GameLab({ initialTrack }: { initialTrack?: TrackId }) {
           )}
         </div>
       </section>
+      )}
       {status.ready && analytics.status.phase === "loading" && (
         <div className="loading-strip" role="status">
           참여 설정을 확인하고 있어요.
@@ -344,7 +364,12 @@ export default function GameLab({ initialTrack }: { initialTrack?: TrackId }) {
                   </span>
                   <span className={s.cardRole} id={`game-scene-${g.id}`}>
                     {i + 1}. {g.scene} · {g.role}
-                    {i === nextIndex && " · 다음 추천"}
+                    {i === nextIndex && (
+                      <>
+                        <span className="sr-only"> · </span>
+                        <em className={s.recommend}>다음 추천</em>
+                      </>
+                    )}
                   </span>
                   <strong>{g.name}</strong>
                   <span className={s.cardDescription}>{g.summary}</span>
