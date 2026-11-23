@@ -2,6 +2,8 @@ import { z } from "zod";
 import { missionById } from "./mission-catalog.ts";
 export const ANALYTICS_VERSION = 1;
 export const GAME_ANALYTICS_VERSION = "games-2026-11-23.2";
+export const LEGACY_GAME_ANALYTICS_VERSION = "games-2026-11-23.1";
+const gameVersions = [LEGACY_GAME_ANALYTICS_VERSION, GAME_ANALYTICS_VERSION];
 export const formalPilotCodes = [
   "P01",
   "P02",
@@ -57,7 +59,7 @@ const context = z
   .refine(
     (c) =>
       c.surface === "game"
-        ? c.contentVersion === GAME_ANALYTICS_VERSION
+        ? gameVersions.includes(c.contentVersion)
         : !!missionById(c.track, c.contentVersion),
     "Unknown experience version",
   );

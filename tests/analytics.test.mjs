@@ -109,6 +109,25 @@ test("analytics contracts reject raw content, identity overrides, unknown fields
     analyticsEventSchema.safeParse(event("game_check", { passed: true }, game))
       .success,
   );
+  assert.ok(
+    analyticsEventSchema.safeParse(
+      event(
+        "game_check",
+        { passed: true },
+        { ...game, contentVersion: "games-2026-11-23.1" },
+      ),
+    ).success,
+  );
+  assert.equal(
+    analyticsEventSchema.safeParse(
+      event(
+        "game_check",
+        { passed: true },
+        { ...game, contentVersion: "games-unknown" },
+      ),
+    ).success,
+    false,
+  );
   assert.equal(
     analyticsEventSchema.safeParse(
       event("reflection_saved", { executionId: crypto.randomUUID() }, game),
@@ -186,7 +205,10 @@ test("a delayed consent cleanup preserves events accepted under a newer consent"
     const resumeCleanup = Promise.withResolvers();
     let delayed = false;
     const { db, store } = fixture(async (sql) => {
-      if (!delayed && sql.startsWith("DELETE FROM lab_events WHERE owner_key=")) {
+      if (
+        !delayed &&
+        sql.startsWith("DELETE FROM lab_events WHERE owner_key=")
+      ) {
         delayed = true;
         cleanupStarted.resolve();
         await resumeCleanup.promise;
@@ -206,7 +228,8 @@ test("a delayed consent cleanup preserves events accepted under a newer consent"
       await staleRequest;
       assert.deepEqual(await store.getAnalyticsConsent("a"), current);
       assert.deepEqual(
-        db.prepare("SELECT id,participant_code FROM lab_events")
+        db
+          .prepare("SELECT id,participant_code FROM lab_events")
           .all()
           .map((row) => ({ ...row })),
         [{ id: accepted.id, participant_code: "P02" }],
