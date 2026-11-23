@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { missionById } from "./mission-catalog.ts";
 export const ANALYTICS_VERSION = 1;
-export const GAME_ANALYTICS_VERSION = "games-2026-11-23.1";
+export const GAME_ANALYTICS_VERSION = "games-2026-11-23.2";
 export const formalPilotCodes = [
   "P01",
   "P02",

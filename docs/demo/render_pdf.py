@@ -7,8 +7,9 @@ from reportlab.lib.utils import ImageReader
 source = Path(sys.argv[1])
 target = Path(sys.argv[2])
 slides = sorted(source.glob('slide-*.png'))
-if len(slides) != 7:
-    raise ValueError('Expected seven inspected slide renders')
+expected = int(sys.argv[3]) if len(sys.argv) > 3 else 7
+if len(slides) != expected:
+    raise ValueError(f'Expected {expected} inspected slide renders')
 pdf = canvas.Canvas(str(target), pagesize=(960, 540), pageCompression=1)
 pdf.setTitle('해보기 2026 컴학 해커톤 발표')
 pdf.setAuthor('해보기 팀')
