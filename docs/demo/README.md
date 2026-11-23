@@ -1,6 +1,6 @@
 # 해보기 발표 자료
 
-최신 발표는 **10장·5분** 구성입니다. [5분 대본](FIVE-MINUTE-PITCH.md)과 [최신 구성·미리보기](../../deliverables/demo/five-minute/README.md)를 사용하세요. 편집 원본은 이 대화의 발표 뷰어에 있으며 `.pptx`로 내려받을 수 있습니다. 아래 7장 파일은 앞선 2분 시연 개정본입니다.
+최신 발표는 **10장·5분** 구성입니다. [5분 대본](FIVE-MINUTE-PITCH.md)과 [최신 구성·미리보기](../../deliverables/demo/five-minute/README.md)를 사용하세요. 팀원 전달용 [PPTX](../../deliverables/demo/five-minute/haebogi-5min-team.pptx)와 [열람용 PDF](../../deliverables/demo/five-minute/haebogi-5min-team.pdf)를 바로 내려받을 수 있습니다. 개인 발표 뷰어에는 별도 공유 권한이 필요합니다. 아래 7장 파일은 앞선 2분 시연 개정본입니다.
 
 학생의 개발 직무 탐색을 작은 코드 업무, 실행, 회고, 비교, 다음 활동으로 연결하는 해커톤 발표 자료입니다. 현재 문서는 발표 준비용이며 학생 3명 예비테스트는 아직 실시하지 않았습니다.
 
