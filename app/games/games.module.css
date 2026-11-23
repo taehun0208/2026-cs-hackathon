@@ -223,8 +223,8 @@
   align-items: center;
 }
 .option input {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   accent-color: var(--blue);
   flex-shrink: 0;
 }

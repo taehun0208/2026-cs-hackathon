@@ -2305,9 +2305,13 @@ nav > button.active:after {
 }
 .work-journey .current > span {
   background: #dbeafe;
+  color: #1d4ed8;
 }
 .work-journey .done {
   color: var(--teal);
+}
+.work-journey .done > span {
+  color: #0f6b55;
 }
 .work-grid {
   grid-template-columns: 252px minmax(0, 1fr) 292px;
@@ -3338,4 +3342,21 @@ nav > button.active:after {
 }
 .job-card .job-action:disabled {
   opacity: 1;
+}
+/* WCAG 2.5.8: 단독으로 누르는 대상은 24×24px 이상으로 유지해요. */
+input[type="checkbox"] {
+  width: 24px;
+  height: 24px;
+}
+summary {
+  min-height: 24px;
+}
+.site-footer button,
+.solution-link {
+  min-height: 24px;
+}
+.analytics-settings a {
+  display: inline-block;
+  min-height: 24px;
+  line-height: 24px;
 }

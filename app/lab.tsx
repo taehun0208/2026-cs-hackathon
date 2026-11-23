@@ -281,6 +281,13 @@ export default function Lab({
   });
   const [selectedNextId, setSelectedNextId] = useState("");
   const [nextReason, setNextReason] = useState("");
+  // 모달을 Esc·바깥 클릭으로 닫아도 작성 중인 회고를 다시 열 때 복원해요.
+  const reflectionDraft = useRef<{
+    missionId: TrackId;
+    reflection: typeof reflection;
+    selectedNextId: string;
+    nextReason: string;
+  } | null>(null);
   const latest = useRef(state),
     coachEpoch = useRef(0),
     coachController = useRef<AbortController | null>(null),
@@ -399,6 +406,7 @@ export default function Lab({
         cancelCoach();
         cancelExecution();
         controller.externalReset();
+        reflectionDraft.current = null;
         setModal(null);
       }
     };
@@ -452,6 +460,15 @@ export default function Lab({
         completedCount: completed.length,
       });
   }, [view, analytics.status.token, completed.length]);
+  useEffect(() => {
+    if (modal === "reflection")
+      reflectionDraft.current = {
+        missionId: active,
+        reflection,
+        selectedNextId,
+        nextReason,
+      };
+  }, [modal, active, reflection, selectedNextId, nextReason]);
   useEffect(() => {
     const fn = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !asking && !deleting) setModal(null);
@@ -724,6 +741,14 @@ export default function Lab({
     setNextReason("");
   }
   function openReflection() {
+    const draft = reflectionDraft.current;
+    if (draft?.missionId === active) {
+      setReflection(draft.reflection);
+      setSelectedNextId(draft.selectedNextId);
+      setNextReason(draft.nextReason);
+      setModal("reflection");
+      return;
+    }
     const r = progress.reflection;
     setReflection(
       r
@@ -774,6 +799,7 @@ export default function Lab({
     analytics.client.current?.reflectionSubmitted(active, recorded);
     analytics.client.current?.end("submitted");
     patch(active, { reflection: recorded });
+    reflectionDraft.current = null;
     setModal(null);
     navigate("journal");
     toast("회고를 남겼어요. 상단에서 저장 상태를 확인해주세요.");
@@ -794,6 +820,7 @@ export default function Lab({
     cancelExecution();
     analytics.client.current?.pause();
     if (await persistence.current?.remove()) {
+      reflectionDraft.current = null;
       setModal(null);
       navigate("home", "replace");
       void analytics.client.current?.load();
@@ -1690,25 +1717,23 @@ export default function Lab({
                       AI 연결 전이에요. 기본 힌트를 이용해주세요.
                     </p>
                   )}
-                  {!state.profile?.aiConsent && (
-                    <label className="consent-inline">
-                      <input
-                        type="checkbox"
-                        checked={false}
-                        onChange={() =>
-                          setState((s) => ({
-                            ...s,
-                            profile: {
-                              ...normalizeProfile(s.profile),
-                              aiConsent: true,
-                            },
-                          }))
-                        }
-                      />{" "}
-                      코드·질문·실행 결과를 OpenAI에 보내는 데 동의해요.
-                      개인정보와 비밀키는 제외해주세요.
-                    </label>
-                  )}
+                  <label className="consent-inline">
+                    <input
+                      type="checkbox"
+                      checked={!!state.profile?.aiConsent}
+                      onChange={(e) =>
+                        setState((s) => ({
+                          ...s,
+                          profile: {
+                            ...normalizeProfile(s.profile),
+                            aiConsent: e.target.checked,
+                          },
+                        }))
+                      }
+                    />{" "}
+                    코드·질문·실행 결과를 OpenAI에 보내는 데 동의해요.
+                    개인정보와 비밀키는 제외해주세요.
+                  </label>
                   <textarea
                     aria-label="코드에 대한 질문"
                     value={question}
