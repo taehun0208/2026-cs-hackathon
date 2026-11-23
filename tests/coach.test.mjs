@@ -230,18 +230,30 @@ test("the server deadline includes storage lookup and prevents provider calls af
   assert.equal(calls, 0);
   assert.equal(store.reservations, 0);
 });
-test("tool rounds share one budget rather than restarting the timeout on each call", async () => {
+test("tool rounds share one budget rather than restarting the timeout on each call", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
   const store = setup(),
     signals = [];
+  let releaseFirst, enteredFirst, enteredSecond;
+  const firstResponse = new Promise((resolve) => (releaseFirst = resolve));
+  const firstStarted = new Promise((resolve) => (enteredFirst = resolve));
+  const secondStarted = new Promise((resolve) => (enteredSecond = resolve));
   let calls = 0;
-  const result = await getHint(input, "owner", store, {
+  const pending = getHint(input, "owner", store, {
     apiKey: "test",
     model: "gpt-4.1-mini",
-    timeoutMs: 45,
+    timeoutMs: 100,
     fetcher: async (_, o) => {
       calls++;
       signals.push(o.signal);
-      await new Promise((r) => setTimeout(r, 30));
+      if (calls === 1) {
+        enteredFirst();
+        await firstResponse;
+      } else {
+        enteredSecond();
+        // A provider may ignore cancellation; the overall budget still applies.
+        return new Promise(() => {});
+      }
       return reply({
         tool_calls: [
           {
@@ -253,11 +265,20 @@ test("tool rounds share one budget rather than restarting the timeout on each ca
       });
     },
   });
+  await firstStarted;
+  t.mock.timers.tick(30);
+  releaseFirst();
+  await secondStarted;
+  assert.equal(signals[0], signals[1]);
+  assert.equal(signals[0].aborted, false);
+  t.mock.timers.tick(70);
+  const result = await pending;
   assert.equal(result.source, "guide");
   assert.equal(calls, 2);
   assert.equal(signals[0], signals[1]);
   assert.equal(signals[0].aborted, true);
-  await new Promise((r) => setTimeout(r, 35));
+  t.mock.timers.tick(1000);
+  await new Promise((r) => setImmediate(r));
   assert.equal(calls, 2);
 });
 test("slow usage logging cannot hold a completed request beyond the overall deadline", async () => {

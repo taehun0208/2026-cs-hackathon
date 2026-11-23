@@ -22,7 +22,7 @@ let rows;
 if (input) rows = JSON.parse(fs.readFileSync(input, "utf8"));
 else {
   if (fs.existsSync(".env.local")) process.loadEnvFile(".env.local");
-  const url = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
+  const url = process.env.DATABASE_URL?.trim() || process.env.POSTGRES_URL?.trim();
   if (!url) throw new Error("Database is not configured");
   const since =
       value("--since") ??

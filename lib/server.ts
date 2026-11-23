@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { normalizeProfile, normalizeLabState } from "./lab-state.ts";
 import { validNextActionPlan } from "./next-actions.ts";
+import { abortable } from "./async-deadline.ts";
 export { getStorage } from "./storage.ts";
 
 const test = z.object({
@@ -238,7 +239,8 @@ export async function readBody(req: Request, limit = 100000) {
     bytes = 0;
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      req.signal.throwIfAborted();
+      const { done, value } = await abortable(reader.read(), req.signal);
       if (done) break;
       bytes += value.byteLength;
       if (bytes > maxBytes) throw tooLarge();

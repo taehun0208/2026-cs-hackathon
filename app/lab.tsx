@@ -37,10 +37,8 @@ import {
   missions,
   events as originalEvents,
   canStartMission,
-  emptyState,
   initialProgress,
   missionById,
-  type LabState,
   type TrackId,
   type Progress,
   type Profile,
@@ -71,12 +69,8 @@ import { AnalyticsSettings, useAnalytics } from "./analytics-settings";
 import { requestCoach } from "../lib/coach-request";
 import { activityHref, selectedActivity } from "../lib/activities";
 import { DeadlineExceeded } from "../lib/async-deadline";
-import {
-  createPersistence,
-  isRecordReset,
-  hasWork,
-  type SaveStatus,
-} from "../lib/persistence";
+import { hasWork } from "../lib/persistence";
+import { useStoredLab } from "./use-stored-lab";
 
 type View = "home" | "work" | "journal" | "compare" | "guide";
 type HistoryMode = "push" | "replace";
@@ -219,18 +213,22 @@ export default function Lab({
   const entryHandled = useRef("");
   const [locationVersion, setLocationVersion] = useState(0);
   const [view, setView] = useState<View>("home"),
-    [state, setState] = useState<LabState>(emptyState),
     [notice, setNotice] = useState("");
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>({
-    phase: "loading",
-    ready: false,
-    localSaved: false,
-    savedAt: null,
-    expiresAt: null,
-    message: "",
+  const {
+    state,
+    setState,
+    status: saveStatus,
+    controller: persistence,
+  } = useStoredLab({
+    onSaved: (next) => analytics.client.current?.saved(next),
+    onExternalReset: () => {
+      cancelCoach();
+      cancelExecution();
+      reflectionDraft.current = null;
+      setModal(null);
+    },
   });
   const analytics = useAnalytics(saveStatus.phase !== "loading");
-  const persistence = useRef<ReturnType<typeof createPersistence> | null>(null);
   const executionEpoch = useRef(0);
   const editor = useRef<HTMLTextAreaElement | null>(null);
   // Resolve the existing consent before a direct link starts its journey.
@@ -377,41 +375,6 @@ export default function Lab({
   }
   useEffect(() => {
     let alive = true;
-    const controller = createPersistence({
-      storage: {
-        get length() {
-          return localStorage.length;
-        },
-        key: (index) => localStorage.key(index),
-        getItem: (key) => localStorage.getItem(key),
-        setItem: (key, value) => localStorage.setItem(key, value),
-        removeItem: (key) => localStorage.removeItem(key),
-      },
-      tabStorage: {
-        getItem: (key) => sessionStorage.getItem(key),
-        setItem: (key, value) => sessionStorage.setItem(key, value),
-        removeItem: (key) => sessionStorage.removeItem(key),
-      },
-      onState: (next) => {
-        if (alive) setState(next);
-      },
-      onSaved: (next) => analytics.client.current?.saved(next),
-      onStatus: (next) => {
-        if (alive) setSaveStatus(next);
-      },
-    });
-    persistence.current = controller;
-    void controller.load();
-    const onStorage = (e: StorageEvent) => {
-      if (isRecordReset(e)) {
-        cancelCoach();
-        cancelExecution();
-        controller.externalReset();
-        reflectionDraft.current = null;
-        setModal(null);
-      }
-    };
-    window.addEventListener("storage", onStorage);
     fetch("/api/coach")
       .then((r) => r.json() as Promise<{ available: boolean }>)
       .then((d) => {
@@ -420,17 +383,12 @@ export default function Lab({
       .catch(() => {});
     return () => {
       alive = false;
-      controller.dispose();
       executionEpoch.current += 1;
       if (toastTimer.current) clearTimeout(toastTimer.current);
-      window.removeEventListener("storage", onStorage);
       coachEpoch.current += 1;
       coachController.current?.abort();
     };
   }, []);
-  useEffect(() => {
-    persistence.current?.stage(state);
-  }, [state]);
   useEffect(() => {
     const changed = () => setLocationVersion((value) => value + 1);
     window.addEventListener("popstate", changed);
@@ -479,18 +437,11 @@ export default function Lab({
   }, [asking, deleting]);
   useEffect(() => {
     if (!modal) return;
+    // JSX owns background inertness so closing a dialog cannot clear a storage lock.
     const dialog = document.querySelector<HTMLElement>('[role="dialog"]');
     const previous = document.activeElement as HTMLElement | null;
     const overflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    const backgrounds = Array.from(
-      document.querySelectorAll<HTMLElement>(
-        "header.site-header,main,footer.site-footer",
-      ),
-    );
-    backgrounds.forEach((el) => {
-      el.inert = true;
-    });
     const focusable = () =>
       Array.from(
         dialog?.querySelectorAll<HTMLElement>(
@@ -514,11 +465,8 @@ export default function Lab({
     document.addEventListener("keydown", trap);
     return () => {
       document.body.style.overflow = overflow;
-      backgrounds.forEach((el) => {
-        el.inert = false;
-      });
       document.removeEventListener("keydown", trap);
-      previous?.focus();
+      if (!previous?.closest("[inert]")) previous?.focus();
     };
   }, [modal]);
   function patch(id: TrackId, value: Partial<Progress>) {
@@ -850,7 +798,7 @@ export default function Lab({
             : "";
   return (
     <div className={`app-shell view-${view}`}>
-      <header className="site-header">
+      <header className="site-header" inert={!!modal}>
         <div className="nav-inner">
           <button
             className="brand"
@@ -1034,7 +982,7 @@ export default function Lab({
           </div>
         )}
       {view === "home" && (
-        <main inert={!ready} className="home wrap">
+        <main inert={!ready || !!modal} className="home wrap">
           <section className="welcome">
             <h1>어떤 일을 해보고 싶나요?</h1>
             <p className="welcome-description">
@@ -1169,7 +1117,7 @@ export default function Lab({
               <ChevronRight size={18} />
             </button>
           )}
-          <footer className="site-footer">
+          <footer className="site-footer" inert={!!modal}>
             <span>
               COMPFit <small>작게 해보고, 다음을 골라요.</small>
             </span>
@@ -1180,7 +1128,7 @@ export default function Lab({
         </main>
       )}
       {view === "work" && unavailableContent && (
-        <main inert={!ready} className="wrap records-page">
+        <main inert={!ready || !!modal} className="wrap records-page">
           <button className="btn secondary" onClick={() => navigate("home")}>
             체험실로
           </button>
@@ -1207,7 +1155,7 @@ export default function Lab({
         </main>
       )}
       {view === "work" && !unavailableContent && (
-        <main inert={!ready} className="work wrap">
+        <main inert={!ready || !!modal} className="work wrap">
           <div className="work-heading">
             <div>
               <button className="back-link" onClick={() => navigate("home")}>
@@ -1825,7 +1773,7 @@ export default function Lab({
         </main>
       )}
       {view === "journal" && (
-        <main inert={!ready} className="wrap records-page">
+        <main inert={!ready || !!modal} className="wrap records-page">
           <div className="page-intro">
             <h1>나의 기록</h1>
             <p>직접 해본 일과 다음에 해볼 일을 모았어요.</p>
@@ -2080,7 +2028,7 @@ export default function Lab({
         </main>
       )}
       {view === "compare" && (
-        <main inert={!ready} className="wrap compare-page">
+        <main inert={!ready || !!modal} className="wrap compare-page">
           <div className="page-intro">
             <h1>체험 비교</h1>
             <p>어떤 일이 재미있었는지, 내 회고를 나란히 살펴봐요.</p>
@@ -2278,7 +2226,7 @@ export default function Lab({
         </main>
       )}
       {view === "guide" && (
-        <main inert={!ready} className="wrap guide-page">
+        <main inert={!ready || !!modal} className="wrap guide-page">
           <div className="page-intro">
             <h1>도움말</h1>
             <p>체험 방법과 기록·데이터 안내를 확인해요.</p>
@@ -2366,7 +2314,7 @@ export default function Lab({
         </main>
       )}
       {view !== "home" && view !== "work" && (
-        <footer className="wrap site-footer">
+        <footer className="wrap site-footer" inert={!!modal}>
           <span>
             COMPFit <small>작게 해보고, 다음을 골라요.</small>
           </span>

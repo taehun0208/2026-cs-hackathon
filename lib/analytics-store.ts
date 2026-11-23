@@ -62,9 +62,10 @@ export function createAnalyticsStorage(
       );
       if (!rows.length) throw new AnalyticsConsentDeleted();
       // Changing a cohort or renewing consent starts a fresh measurement period.
+      // A newer consent may already have accepted events while this request waited.
       await query(
-        "DELETE FROM lab_events WHERE owner_key=$1 AND consent_epoch <> $2",
-        [owner, epoch],
+        "DELETE FROM lab_events WHERE owner_key=$1 AND consent_epoch <> $2 AND EXISTS (SELECT 1 FROM analytics_preferences WHERE owner_key=$3 AND epoch=$4)",
+        [owner, epoch, owner, epoch],
       );
       return {
         enabled,

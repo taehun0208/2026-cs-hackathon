@@ -23,6 +23,18 @@ export async function clientHarness(t, options = {}) {
   const dom = new JSDOM('<div id="root"></div>', {
     url: options.url ?? "http://localhost/?track=frontend",
   });
+  // JSDOM does not yet reflect HTMLElement.inert to its boolean attribute.
+  // Match browser reflection so imperative writes cannot hide a React conflict.
+  if (!("inert" in dom.window.HTMLElement.prototype))
+    Object.defineProperty(dom.window.HTMLElement.prototype, "inert", {
+      configurable: true,
+      get() {
+        return this.hasAttribute("inert");
+      },
+      set(value) {
+        this.toggleAttribute("inert", !!value);
+      },
+    });
   const previous = new Map();
   const globals = {
     window: dom.window,
