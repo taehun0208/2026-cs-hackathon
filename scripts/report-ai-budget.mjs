@@ -36,7 +36,7 @@ if (!policy) {
     query = async (text, values) =>
       db.prepare(text.replace(/\$\d+/g, "?")).all(...values);
   } else {
-    const url = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
+    const url = process.env.DATABASE_URL?.trim() || process.env.POSTGRES_URL?.trim();
     if (!url)
       throw new Error(
         "Database is not configured; use --sqlite for a local QA ledger",
