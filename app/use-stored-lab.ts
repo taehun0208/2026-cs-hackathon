@@ -1,14 +1,22 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { emptyState } from "../lib/missions";
+import { emptyState, type LabState } from "../lib/missions";
 import {
   createPersistence,
   isRecordReset,
   type SaveStatus,
 } from "../lib/persistence";
 
-export function useStoredLab() {
+type StoredLabOptions = {
+  onSaved?: (state: LabState) => void;
+  onExternalReset?: () => void;
+};
+
+export function useStoredLab(options: StoredLabOptions = {}) {
+  // Keep screen callbacks current without reloading records on each render.
+  const callbacks = useRef(options);
+  callbacks.current = options;
   const [state, setState] = useState(emptyState);
   const [status, setStatus] = useState<SaveStatus>({
     phase: "loading",
@@ -20,6 +28,7 @@ export function useStoredLab() {
   });
   const controller = useRef<ReturnType<typeof createPersistence> | null>(null);
   useEffect(() => {
+    let alive = true;
     const persistence = createPersistence({
       storage: {
         get length() {
@@ -35,17 +44,27 @@ export function useStoredLab() {
         setItem: (key, value) => sessionStorage.setItem(key, value),
         removeItem: (key) => sessionStorage.removeItem(key),
       },
-      onState: setState,
-      onStatus: setStatus,
+      onState: (next) => {
+        if (alive) setState(next);
+      },
+      onStatus: (next) => {
+        if (alive) setStatus(next);
+      },
+      onSaved: (next) => callbacks.current.onSaved?.(next),
     });
     controller.current = persistence;
     void persistence.load();
     const onStorage = (event: StorageEvent) => {
-      if (isRecordReset(event)) persistence.externalReset();
+      if (isRecordReset(event)) {
+        callbacks.current.onExternalReset?.();
+        persistence.externalReset();
+      }
     };
     window.addEventListener("storage", onStorage);
     return () => {
+      alive = false;
       persistence.dispose();
+      controller.current = null;
       window.removeEventListener("storage", onStorage);
     };
   }, []);

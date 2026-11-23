@@ -28,7 +28,7 @@ const event = (
   data,
   context: ctx,
 });
-function fixture() {
+function fixture(beforeQuery = async () => {}) {
   const db = new DatabaseSync(":memory:");
   for (const file of [
     "001_initial.sql",
@@ -43,10 +43,12 @@ function fixture() {
     );
   let clock = Date.parse("2026-11-23T00:00:00Z");
   const store = createStorage(
-    async (text, values) =>
-      db
+    async (text, values) => {
+      await beforeQuery(text, values);
+      return db
         .prepare(text.replace(/ FOR UPDATE/g, "").replace(/\$\d+/g, "?"))
-        .all(...values),
+        .all(...values);
+    },
     () => clock,
   );
   return { db, store, advance: (ms) => (clock += ms) };
@@ -176,6 +178,44 @@ test("duplicate retries count once, a different owner cannot claim the same even
     assert.equal(await store.appendAnalyticsEvents("a", a.token, [event()]), 0);
   } finally {
     db.close();
+  }
+});
+test("a delayed consent cleanup preserves events accepted under a newer consent", async () => {
+  for (const staleEnabled of [true, false]) {
+    const cleanupStarted = Promise.withResolvers();
+    const resumeCleanup = Promise.withResolvers();
+    let delayed = false;
+    const { db, store } = fixture(async (sql) => {
+      if (!delayed && sql.startsWith("DELETE FROM lab_events WHERE owner_key=")) {
+        delayed = true;
+        cleanupStarted.resolve();
+        await resumeCleanup.promise;
+      }
+    });
+    let staleRequest;
+    try {
+      staleRequest = store.setAnalyticsConsent("a", staleEnabled, "P01");
+      await cleanupStarted.promise;
+      const current = await store.setAnalyticsConsent("a", true, "P02");
+      const accepted = event();
+      assert.equal(
+        await store.appendAnalyticsEvents("a", current.token, [accepted]),
+        1,
+      );
+      resumeCleanup.resolve();
+      await staleRequest;
+      assert.deepEqual(await store.getAnalyticsConsent("a"), current);
+      assert.deepEqual(
+        db.prepare("SELECT id,participant_code FROM lab_events")
+          .all()
+          .map((row) => ({ ...row })),
+        [{ id: accepted.id, participant_code: "P02" }],
+      );
+    } finally {
+      resumeCleanup.resolve();
+      await staleRequest;
+      db.close();
+    }
   }
 });
 test("renewed consent has a new token and old queued events cannot be reintroduced; full deletion fences consent too", async () => {

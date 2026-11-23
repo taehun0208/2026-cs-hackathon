@@ -1,6 +1,12 @@
 import { emptyState, type LabState } from "./missions.ts";
 import { normalizeLabState } from "./lab-state.ts";
-import { mergeStates, sameValue } from "./state-merge.ts";
+import {
+  mergeStates,
+  sameValue,
+  changedStateKeys,
+  isStateKey,
+  type StateKey,
+} from "./state-merge.ts";
 import { abortable } from "./async-deadline.ts";
 
 export const DRAFT_KEY = "haebogi-lab-v1";
@@ -36,6 +42,7 @@ type Draft = {
   expiresAt: string | null;
   base?: LabState;
   id?: string;
+  forcedChanges?: StateKey[];
 };
 type ServerRecord = {
   state: LabState | null;
@@ -65,6 +72,9 @@ export function readDraft(raw: string | null): Draft | null {
       savedAt: typeof x.savedAt === "string" ? x.savedAt : null,
       expiresAt: typeof x.expiresAt === "string" ? x.expiresAt : null,
       ...(typeof x.id === "string" ? { id: x.id } : {}),
+      ...(Array.isArray(x.forcedChanges) && x.forcedChanges.some(isStateKey)
+        ? { forcedChanges: x.forcedChanges.filter(isStateKey) }
+        : {}),
       ...(x.base?.version === 1 && x.base?.progress
         ? { base: normalizeLabState(x.base) }
         : {}),
@@ -99,6 +109,10 @@ export function createPersistence(options: {
   let ownKey: string | null = null;
   let selectedKey: string | null = null;
   const resolvedKeys = new Set<string>();
+  // An edit made while a write may still commit remains an explicit intent,
+  // even when its value returns to the last confirmed server state.
+  const forcedChanges = new Set<StateKey>();
+  let unconfirmedWrite = false;
   let tail: Promise<unknown> = Promise.resolve();
   let timer: ReturnType<typeof setTimeout> | undefined;
   let status: SaveStatus = {
@@ -162,16 +176,20 @@ export function createPersistence(options: {
         ({ key }) => key !== ownKey && key !== selectedKey,
       ).length,
     });
-  const acknowledge = (snapshot: LabState) => {
+  const acknowledge = (snapshot: LabState, confirmed = false) => {
     for (const { key, draft } of pending()) {
       const merged = mergeStates(
         draft.base ?? emptyState(),
         draft.state,
         snapshot,
+        "local",
+        draft.forcedChanges,
       );
       if (
         resolvedKeys.has(key) ||
-        (!merged.conflicts.length && sameValue(merged.state, snapshot))
+        ((!draft.forcedChanges?.length || confirmed) &&
+          !merged.conflicts.length &&
+          sameValue(merged.state, snapshot))
       ) {
         try {
           options.storage.removeItem(key);
@@ -186,7 +204,7 @@ export function createPersistence(options: {
     reportPending();
   };
   const writeLocal = () => {
-    const dirty = fingerprint(state) !== synced;
+    const dirty = fingerprint(state) !== synced || forcedChanges.size > 0;
     const id = crypto.randomUUID();
     const raw = JSON.stringify({
       format: 2,
@@ -196,6 +214,7 @@ export function createPersistence(options: {
       savedAt: status.savedAt,
       expiresAt: status.expiresAt,
       base,
+      ...(forcedChanges.size ? { forcedChanges: [...forcedChanges] } : {}),
     } satisfies Draft);
     // Immutable, durable entries survive both shared-cache writes and closing
     // the originating tab. Remove our previous entry only after its replacement
@@ -223,6 +242,17 @@ export function createPersistence(options: {
     try {
       options.tabStorage?.setItem(DRAFT_KEY, raw);
     } catch {}
+    if (!dirty) {
+      for (const key of new Set([ownKey, selectedKey])) {
+        if (!key) continue;
+        try {
+          options.storage.removeItem(key);
+        } catch {
+          saved = false;
+        }
+      }
+      ownKey = selectedKey = null;
+    }
     emit({ localSaved: saved });
     reportPending();
   };
@@ -238,6 +268,7 @@ export function createPersistence(options: {
           // Read at execution time: an earlier queued save may have merged
           // another tab's edits while this job was waiting.
           let snapshot = state;
+          unconfirmedWrite = true;
           let response = await request("POST", snapshot, signal);
           if (token !== epoch || disposed) throw new Error("SAVE_CANCELED");
           let data = await response.clone().json();
@@ -250,7 +281,9 @@ export function createPersistence(options: {
             attempt++
           ) {
             const remote = normalizeLabState(data.state);
-            const merged = mergeStates(base, state, remote);
+            const merged = mergeStates(base, state, remote, "local", [
+              ...forcedChanges,
+            ]);
             if (merged.conflicts.length) {
               conflictRemote = {
                 state: remote,
@@ -301,7 +334,9 @@ export function createPersistence(options: {
           } catch {}
           synced = fingerprint(snapshot);
           base = snapshot;
-          acknowledge(snapshot);
+          unconfirmedWrite = false;
+          forcedChanges.clear();
+          acknowledge(snapshot, true);
           emit({ savedAt: data.savedAt, expiresAt: data.expiresAt });
           writeLocal();
           if (fingerprint(state) === synced)
@@ -341,6 +376,11 @@ export function createPersistence(options: {
         }
       }
       selectedKey = draft?.id ? `${PENDING_PREFIX}${draft.id}` : null;
+      forcedChanges.clear();
+      for (const key of draft?.forcedChanges ?? []) forcedChanges.add(key);
+      // A dirty draft can belong to a closed tab whose request is still running.
+      // A fresh controller cannot know whether that request reached the server.
+      unconfirmedWrite = !!draft?.dirty;
       reportPending();
       if (draft) {
         state = draft.state;
@@ -393,7 +433,13 @@ export function createPersistence(options: {
           const draftBase =
             draft.base ??
             (draft.savedAt === remote.savedAt ? remoteState : emptyState());
-          const merged = mergeStates(draftBase, draft.state, remoteState);
+          const merged = mergeStates(
+            draftBase,
+            draft.state,
+            remoteState,
+            "local",
+            [...forcedChanges],
+          );
           if (merged.conflicts.length) {
             base = draftBase;
             conflictRemote = remote;
@@ -418,7 +464,8 @@ export function createPersistence(options: {
           message: "",
         });
         if (hasWork(state)) writeLocal();
-        if (fingerprint(state) !== synced) api.stage(state);
+        if (fingerprint(state) !== synced || forcedChanges.size)
+          api.stage(state);
       } catch {
         if (token === epoch && !disposed)
           emit({
@@ -439,8 +486,16 @@ export function createPersistence(options: {
         status.phase === "loading"
       )
         return;
+      const changed = changedStateKeys(state, next);
+      if (unconfirmedWrite) for (const key of changed) forcedChanges.add(key);
       state = next;
-      if (fingerprint(next) === synced) return;
+      if (fingerprint(next) === synced && !forcedChanges.size) {
+        cancelTimer();
+        if (changed.length) writeLocal();
+        if (!unconfirmedWrite)
+          emit({ phase: status.savedAt ? "saved" : "idle", message: "" });
+        return;
+      }
       writeLocal();
       cancelTimer();
       if (!active) return;
@@ -460,7 +515,9 @@ export function createPersistence(options: {
         if (selectedKey) resolvedKeys.add(selectedKey);
         if (ownKey) resolvedKeys.add(ownKey);
       }
-      state = mergeStates(base, state, remote.state!, preference).state;
+      state = mergeStates(base, state, remote.state!, preference, [
+        ...forcedChanges,
+      ]).state;
       base = remote.state!;
       synced = fingerprint(base);
       conflictRemote = null;
@@ -475,7 +532,8 @@ export function createPersistence(options: {
         expiresAt: remote.expiresAt,
       });
       writeLocal();
-      if (!sameValue(state, base)) await api.saveNow().catch(() => {});
+      if (!sameValue(state, base) || forcedChanges.size)
+        await api.saveNow().catch(() => {});
       else acknowledge(base);
     },
     async recoverNextDraft() {
@@ -522,6 +580,8 @@ export function createPersistence(options: {
         options.storage.removeItem(RESET_KEY);
         ownKey = selectedKey = null;
         resolvedKeys.clear();
+        forcedChanges.clear();
+        unconfirmedWrite = false;
         state = emptyState();
         base = state;
         conflictRemote = null;
@@ -566,6 +626,8 @@ export function createPersistence(options: {
       synced = fingerprint(state);
       ownKey = selectedKey = null;
       resolvedKeys.clear();
+      forcedChanges.clear();
+      unconfirmedWrite = false;
       options.onState(state);
       emit({
         phase: "conflict",

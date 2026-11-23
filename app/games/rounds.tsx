@@ -1,6 +1,13 @@
 "use client";
 
-import { useContext, useRef, useState, type ReactNode } from "react";
+import {
+  useContext,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { ArrowRight, Check, X } from "lucide-react";
 import s from "./games.module.css";
 import { Board, GameCheckContext, type PlayProps } from "./shared";
@@ -20,6 +27,11 @@ export function Rounds({
     [results, setResults] = useState<boolean[]>([]),
     [summary, setSummary] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
+  const nextAction = useRef<HTMLButtonElement>(null);
+  const feedbackId = useId();
+  useEffect(() => {
+    if (revealed) nextAction.current?.focus();
+  }, [revealed]);
   const round = rounds[index];
   const last = index === rounds.length - 1;
   const focusHeading = () =>
@@ -90,6 +102,7 @@ export function Rounds({
               <>
                 <div
                   role="status"
+                  id={feedbackId}
                   className={results[index] ? s.right : s.wrong}
                 >
                   <strong>
@@ -101,7 +114,12 @@ export function Rounds({
                   )}
                   <p>{round.why}</p>
                 </div>
-                <button className="btn primary" onClick={next}>
+                <button
+                  className="btn primary"
+                  ref={nextAction}
+                  aria-describedby={feedbackId}
+                  onClick={next}
+                >
                   {last ? "결과 보기" : "다음 상황"} <ArrowRight size={16} />
                 </button>
               </>

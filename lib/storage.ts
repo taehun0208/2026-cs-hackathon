@@ -171,7 +171,7 @@ export function createStorage(query: Query, now = Date.now): LabStorage {
 let cached: LabStorage | undefined;
 export async function getStorage(): Promise<LabStorage> {
   if (cached) return cached;
-  const url = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
+  const url = process.env.DATABASE_URL?.trim() || process.env.POSTGRES_URL?.trim();
   if (url) {
     const sql = neon(url);
     cached = createStorage(

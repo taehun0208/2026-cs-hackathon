@@ -52,7 +52,7 @@ const edit = (state, track, code) => ({
   },
 });
 
-async function setup(t) {
+async function setup(t, options = {}) {
   const db = new DatabaseSync(":memory:");
   db.exec(
     readFileSync(
@@ -115,11 +115,15 @@ async function setup(t) {
     const controller = createPersistence({
       storage: shared,
       tabStorage,
-      fetcher: (...args) => {
+      fetcher: async (...args) => {
         if (offline) throw new Error("offline");
-        return fetcher(...args);
+        await options.beforeRequest?.(...args);
+        const response = await fetcher(...args);
+        options.onResponse?.(response);
+        return response;
       },
       debounceMs: 100000,
+      timeoutMs: options.timeoutMs ?? 8000,
       onState: (next) => {
         state = next;
       },
@@ -145,6 +149,48 @@ async function setup(t) {
   }
   return { store, seeded, shared, tab };
 }
+
+test("retrying a reverted edit after timeout fences the older request at the database", async (t) => {
+  let release,
+    entered,
+    first = true;
+  const gate = new Promise((resolve) => (release = resolve));
+  const started = new Promise((resolve) => (entered = resolve));
+  const responses = [];
+  const f = await setup(t, {
+    timeoutMs: 40,
+    beforeRequest: async (_, request) => {
+      if (request.method === "POST" && first) {
+        first = false;
+        entered();
+        await gate;
+      }
+    },
+    onResponse: (response) => responses.push(response.status),
+  });
+  t.after(() => release());
+  const tab = await f.tab();
+  const original = structuredClone(tab.state);
+  tab.controller.stage(edit(tab.state, "frontend", "late old edit"));
+  const saving = tab.controller.saveNow();
+  const timedOut = assert.rejects(saving);
+  await started;
+  // Keep the event loop alive while AbortSignal.timeout's timer is unreferenced.
+  await Promise.all([
+    timedOut,
+    new Promise((resolve) => setTimeout(resolve, 60)),
+  ]);
+  assert.equal(tab.status.phase, "error");
+  tab.controller.stage(original);
+  await tab.controller.saveNow();
+  assert.equal(tab.status.phase, "saved");
+  release();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(responses.at(-1), 409);
+  assert.deepEqual((await f.store.read("guest")).state, original);
+  assert.equal(readDraft(f.shared.getItem(DRAFT_KEY)).dirty, false);
+  assert.equal(pendingDrafts(f.shared).length, 0);
+});
 
 const pendingDrafts = (storage) =>
   Array.from({ length: storage.length }, (_, i) => storage.key(i))

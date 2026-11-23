@@ -6,7 +6,7 @@ import { createAiBudgetStorage } from "../lib/ai-budget-store.ts";
 import { budgetPolicy } from "../lib/ai-budget.ts";
 if (process.env.LAB_BUDGET_NEON_TEST !== "1")
   throw new Error("Explicit LAB_BUDGET_NEON_TEST=1 is required");
-const url = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
+const url = process.env.DATABASE_URL?.trim() || process.env.POSTGRES_URL?.trim();
 if (!url)
   throw new Error("A configured Neon database and migration 003 are required");
 const sql = neon(url),
