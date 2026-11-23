@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readBody } from "../lib/server.ts";
 
 const encoder = new TextEncoder();
-function streamed(chunks, headers = {}) {
+function streamed(chunks, headers = {}, signal) {
   let pulled = 0,
     cancelled = false;
   const body = new ReadableStream(
@@ -24,6 +24,7 @@ function streamed(chunks, headers = {}) {
       body,
       duplex: "half",
       headers,
+      signal,
     }),
     counts: () => ({ pulled, cancelled }),
   };
@@ -66,4 +67,64 @@ test("malformed JSON and byte-heavy invalid UTF-8 cannot skip the limit", async 
   ]);
   await assert.rejects(readBody(fixture.req, 16));
   assert.deepEqual(fixture.counts(), { pulled: 1, cancelled: true });
+});
+
+test("an already aborted upload is cancelled before consuming its first chunk", async () => {
+  const controller = new AbortController();
+  const reason = new DOMException("Upload cancelled", "AbortError");
+  controller.abort(reason);
+  const fixture = streamed([encoder.encode('{"a":1}')], {}, controller.signal);
+  await assert.rejects(readBody(fixture.req), (error) => error === reason);
+  assert.deepEqual(fixture.counts(), { pulled: 0, cancelled: true });
+  assert.equal(fixture.req.body.locked, false);
+});
+
+test("an aborted upload stops waiting for another chunk even if source cancellation never settles", async () => {
+  const controller = new AbortController();
+  const waiting = Promise.withResolvers();
+  const reason = new DOMException("Upload cancelled", "AbortError");
+  let source,
+    pulled = 0,
+    cancelled = false,
+    timer;
+  const body = new ReadableStream(
+    {
+      start(stream) {
+        source = stream;
+      },
+      pull(stream) {
+        if (pulled++ === 0) stream.enqueue(encoder.encode('{"a":'));
+        else waiting.resolve();
+      },
+      cancel() {
+        cancelled = true;
+        return new Promise(() => {});
+      },
+    },
+    { highWaterMark: 0 },
+  );
+  const req = new Request("https://lab.example/api/state", {
+    method: "POST",
+    body,
+    duplex: "half",
+    signal: controller.signal,
+  });
+  const reading = readBody(req).then(() => "resolved", (error) => error);
+  try {
+    await waiting.promise;
+    controller.abort(reason);
+    const result = await Promise.race([
+      reading,
+      new Promise((resolve) => {
+        timer = setTimeout(() => resolve("still waiting"), 100);
+      }),
+    ]);
+    assert.equal(result, reason);
+    assert.equal(cancelled, true);
+    assert.equal(req.body.locked, false);
+  } finally {
+    clearTimeout(timer);
+    if (!cancelled) source.close();
+    await reading;
+  }
 });
