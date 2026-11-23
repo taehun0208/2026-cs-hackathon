@@ -1,3 +1,4 @@
+import { BrandText } from "../../../brand";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronRight, BookOpen, FlaskConical } from "lucide-react";
@@ -26,11 +27,11 @@ export default async function Activity({
     <>
       <header className="site-header">
         <div className="nav-inner">
-          <Link className="brand" href="/">
+          <Link className="brand" href="/" aria-label="COMPFit 홈">
             <span className="brand-mark">
               <FlaskConical size={23} />
             </span>
-            <span>해보기</span>
+            <BrandText />
           </Link>
           <Link className="btn secondary compact" href="/?view=journal">
             나의 기록

@@ -1,13 +1,13 @@
 {
-  "title": "해보기 — 5분 서비스 발표",
+  "title": "COMPFit — 5분 서비스 발표",
   "durationSeconds": 300,
   "timingMeasured": false,
   "slides": [
     {
       "slide": 1,
-      "title": "해보기",
+      "title": "COMPFit",
       "seconds": 15,
-      "spoken": "안녕하세요. 기초 문법을 배운 컴퓨터학부 학생이 작은 개발 업무를 직접 해보고, 다음에 배울 일을 고르는 서비스 해보기입니다.",
+      "spoken": "안녕하세요. 기초 문법을 배운 컴퓨터학부 학생이 작은 개발 업무를 직접 해보고, 다음에 배울 일을 고르는 서비스 COMPFit입니다.",
       "presenter": "0:00–0:15. 인사 뒤 학생 문제로 바로 이어갑니다. 실제 팀원 담당은 전원 미정입니다."
     },
     {
@@ -70,8 +70,8 @@
       "slide": 10,
       "title": "다음에 배울 일을 직접 고를 수 있도록",
       "seconds": 15,
-      "spoken": "해보기는 짧은 체험으로 적성을 결론내리지 않습니다. 내가 해본 일과 느낀 점을 바탕으로 다음에 배울 일을 스스로 고를 수 있도록 돕겠습니다. 감사합니다.",
-      "presenter": "4:45–5:00. 시간은300초 구성 계획이며 실측 리허설은 별도입니다. 디자인 참고: https://tossmini-docs.toss.im/tds-mobile/foundation/typography/ , https://toss.im/tossfeed/article/beginning-of-tps , https://toss.tech/article/toss-design-system . 정보 위계·가독성·여백을 참고했으며 해보기의 Pretendard와 파랑을 유지합니다."
+      "spoken": "COMPFit은 짧은 체험으로 적성을 결론내리지 않습니다. 내가 해본 일과 느낀 점을 바탕으로 다음에 배울 일을 스스로 고를 수 있도록 돕겠습니다. 감사합니다.",
+      "presenter": "4:45–5:00. 시간은300초 구성 계획이며 실측 리허설은 별도입니다. 디자인 참고: https://tossmini-docs.toss.im/tds-mobile/foundation/typography/ , https://toss.im/tossfeed/article/beginning-of-tps , https://toss.tech/article/toss-design-system . 정보 위계·가독성·여백을 참고했으며 COMPFit의 Pretendard와 파랑을 유지합니다."
     }
   ]
 }
