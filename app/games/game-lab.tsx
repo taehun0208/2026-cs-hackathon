@@ -313,7 +313,8 @@ export default function GameLab({ initialTrack }: { initialTrack?: TrackId }) {
                 새로고침
               </button>
             ))}
-          {["error", "recovery", "conflict"].includes(status.phase) && (
+          {(["error", "recovery", "conflict"].includes(status.phase) ||
+            (!status.localSaved && status.ready && status.phase !== "idle")) && (
             <>
               <button className="btn secondary compact" onClick={download}>
                 기록 내려받기
