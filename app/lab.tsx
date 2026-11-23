@@ -1709,25 +1709,23 @@ export default function Lab({
                       AI 연결 전이에요. 기본 힌트를 이용해주세요.
                     </p>
                   )}
-                  {!state.profile?.aiConsent && (
-                    <label className="consent-inline">
-                      <input
-                        type="checkbox"
-                        checked={false}
-                        onChange={() =>
-                          setState((s) => ({
-                            ...s,
-                            profile: {
-                              ...normalizeProfile(s.profile),
-                              aiConsent: true,
-                            },
-                          }))
-                        }
-                      />{" "}
-                      코드·질문·실행 결과를 OpenAI에 보내는 데 동의해요.
-                      개인정보와 비밀키는 제외해주세요.
-                    </label>
-                  )}
+                  <label className="consent-inline">
+                    <input
+                      type="checkbox"
+                      checked={!!state.profile?.aiConsent}
+                      onChange={(e) =>
+                        setState((s) => ({
+                          ...s,
+                          profile: {
+                            ...normalizeProfile(s.profile),
+                            aiConsent: e.target.checked,
+                          },
+                        }))
+                      }
+                    />{" "}
+                    코드·질문·실행 결과를 OpenAI에 보내는 데 동의해요.
+                    개인정보와 비밀키는 제외해주세요.
+                  </label>
                   <textarea
                     aria-label="코드에 대한 질문"
                     value={question}
