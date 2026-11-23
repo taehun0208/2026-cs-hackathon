@@ -71,7 +71,7 @@ npm run build
 
 ## 배포
 
-팀원은 공개 저장소를 자기 GitHub 계정으로 Fork하고 본인 Vercel 프로젝트에서 배포할 수 있습니다. 기존 Hobby 프로젝트의 배포 권한과는 별개입니다. [팀원 실행·무료 배포·권한 오류 안내](docs/TEAM-DEVELOPMENT.md)에 환경 분리와 확인 순서를 정리했습니다.
+공개 저장소의 Git 연동 협업과 Vercel 대시보드 멤버 권한은 별개입니다. 독립 시연이 필요한 팀원은 자기 GitHub 계정으로 Fork하고 본인 Vercel 프로젝트에 배포할 수 있습니다. [팀원 실행·무료 배포·권한 오류 안내](docs/TEAM-DEVELOPMENT.md)에 환경 분리와 확인 순서를 정리했습니다.
 
 Vercel의 Next.js 프로젝트에 별도 Neon 저장소를 연결합니다. 서버 환경 변수를 설정한 뒤, 해당 DB를 대상으로 `npm run db:migrate`를 한 번 실행합니다. 로컬 SQLite는 자동 준비되므로 이 명령이 필요 없습니다.
 

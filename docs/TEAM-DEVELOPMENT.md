@@ -25,6 +25,8 @@ npm run typecheck
 
 ## 개인 Vercel에 배포
 
+이 저장소는 공개 저장소이며, Vercel은 공개 저장소 협업을 무료로 지원한다고 안내합니다. 아래 개인 Fork 배포는 기존 프로젝트의 팀원 배포가 불가능하다는 뜻이 아니라, 운영 데이터와 분리된 별도 시연이 필요할 때 선택하는 방법입니다. 공개 저장소의 Git 연동 배포, Vercel 대시보드 팀원 권한, 사이트 열람 권한은 각각 따로 확인합니다. [공개·비공개 협업 구분](https://vercel.com/docs/deployments/troubleshoot-project-collaboration)
+
 기존 서비스의 기록·DB·키와 분리된 개인 시연용 배포를 만듭니다. Hobby의 한도와 사용 조건은 각 계정에서 확인하며, OpenAI API 사용료는 Vercel 무료 배포와 별도입니다.
 
 1. 공개 GitHub 저장소를 **본인 계정으로 Fork**합니다. Fork는 원본과 별개의 저장소이며 이후 변경을 PR로 제안할 수 있습니다. [GitHub Fork 안내](https://docs.github.com/en/pull-requests/how-tos/work-with-forks/fork-a-repo)
@@ -53,7 +55,9 @@ DB 스키마는 빌드 중 자동 변경하지 않습니다. CI나 모든 Previe
 | 증상 | 확인할 곳과 다음 행동 |
 | --- | --- |
 | 사이트에 들어가자마자 Vercel 로그인·권한 화면 | 앱의 기록 오류가 아니라 배포 보호 화면일 수 있습니다. 학생에게는 README의 Production 도메인을 전달합니다. 배포별 생성 URL·Preview는 보호될 수 있으므로 소유자가 공유 범위를 확인합니다. [배포 보호 범위](https://vercel.com/docs/deployment-protection) |
-| GitHub push는 되지만 Vercel이 커밋 작성자 권한을 거절 | GitHub 쓰기 권한이 기존 Hobby 프로젝트의 배포 권한을 주지는 않습니다. Hobby는 프로젝트 소유자와 연결된 커밋 작성자를 확인합니다. 무료 개인 시연은 본인 Fork·본인 프로젝트·본인 계정으로 작성한 실제 변경 커밋에서 진행합니다. 다른 사람의 작성자 정보로 바꾸지 않습니다. [공식 협업 오류 안내](https://vercel.com/docs/deployments/troubleshoot-project-collaboration) |
+| 공개 저장소의 push·PR에 Vercel 오류 또는 배포 대기 | 공개 저장소는 무료 협업 대상입니다. 먼저 GitHub의 Vercel Check 오류 원문, 연결된 저장소·브랜치와 Git provider 연결, 외부 Fork PR 승인 대기를 확인합니다. 이 저장소에 비공개 저장소의 Hobby 작성자 제한을 그대로 적용해 배포 불가로 단정하지 않습니다. 다른 사람의 커밋 작성자 정보로 바꾸지 않습니다. [공식 협업 오류 안내](https://vercel.com/docs/deployments/troubleshoot-project-collaboration) |
+| 비공개 저장소에서 작성자·소유자 권한 오류 | 비공개 저장소의 협업에는 별도 요금제·저장소 소속·작성자 조건이 적용됩니다. Hobby의 소유자 제한을 포함해 오류에 해당하는 조건을 공식 문서에서 확인합니다. 현재 공개 저장소와 구분합니다. [비공개 저장소 배포 조건](https://vercel.com/docs/git#deploying-private-git-repositories) |
+| 기존 Hobby 프로젝트의 대시보드 팀원으로 추가하고 싶음 | 공개 저장소의 Git 연동 배포와 대시보드 멤버 추가는 별개입니다. Hobby에는 추가 팀원을 초대할 수 없습니다. 권한·요금제를 변경하기 전에 필요한 작업이 Git 연동 배포인지 프로젝트 설정 관리인지 구분합니다. 독립적인 설정 관리가 필요하면 본인 Fork와 개인 프로젝트를 사용합니다. [팀원 관리](https://vercel.com/docs/rbac/managing-team-members) |
 | 본인 프로젝트인데 작성자를 확인하지 못함 | Vercel의 Git provider 연결과 커밋에 사용한 본인 계정의 연결 정보를 확인합니다. 비밀키나 이메일 목록을 공개 이슈에 올리지 않습니다. [Git 연결·작성자 확인](https://vercel.com/docs/deployments/troubleshoot-project-collaboration) |
 | Fork PR의 Preview가 승인 대기 | 외부 PR에 대한 Vercel Git Fork Protection일 수 있습니다. 소유자가 변경을 검토하고 승인할 항목입니다. 보호를 끄거나 운영 키를 Fork에 복사하는 방식으로 해결하지 않습니다. [공개 Fork 배포](https://vercel.com/docs/git#deploying-forks-of-public-git-repositories) |
 | 홈은 열리지만 기록이 503으로 실패 | 해당 배포 환경의 DB 변수·접속 가능 여부·마이그레이션을 확인합니다. 앱은 초안을 기기에 남기며 다시 저장할 수 있습니다. Production/Preview 변수 범위도 확인합니다. |
