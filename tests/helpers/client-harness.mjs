@@ -236,7 +236,7 @@ export async function clientHarness(t, options = {}) {
         false,
         `Disabled button: ${text}`,
       );
-      assert.equal(button.closest("[inert]"), null, `Inert button: ${text}`);
+      assert.ok(button.closest("[inert]") === null, `Inert button: ${text}`);
       await React.act(async () => button.click());
       await settle();
     },
