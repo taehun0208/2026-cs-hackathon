@@ -81,7 +81,7 @@ async function shot(s, file, frame, crop) {
   s.images.add({
     blob: b,
     contentType: "image/jpeg",
-    alt: "해보기 서비스의 기능 점검용 QA 화면",
+    alt: "COMPFit 서비스의 기능 점검용 QA 화면",
     fit: "contain",
     position: frame,
     ...(crop ? { crop } : {}),
@@ -92,7 +92,7 @@ let s = slide(
   "",
   `서비스: https://haebogi-career-lab.vercel.app\n코드: https://github.com/taehun0208/2026-cs-hackathon\n제품 범위 근거: docs/IMPLEMENTATION.md. 학생 효과 측정 결과는 아직 없습니다.`,
 );
-text(s, "product-name", "해보기", 72, 138, 1100, 130, 68, C.ink, true);
+text(s, "product-name", "COMPFit", 72, 138, 1100, 130, 68, C.ink, true);
 text(
   s,
   "product-definition",

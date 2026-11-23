@@ -1,5 +1,6 @@
 "use client";
 
+import { BrandText } from "./brand";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -854,12 +855,12 @@ export default function Lab({
           <button
             className="brand"
             onClick={() => navigate("home")}
-            aria-label="해보기 홈"
+            aria-label="COMPFit 홈"
           >
             <span className="brand-mark">
               <FlaskConical size={23} />
             </span>
-            <span>해보기</span>
+            <BrandText />
           </button>
           <nav aria-label="주 메뉴">
             {(
@@ -1168,21 +1169,9 @@ export default function Lab({
               <ChevronRight size={18} />
             </button>
           )}
-          <Link className="game-entry" href="/games">
-            <span className="game-entry-icon">
-              <Monitor size={24} />
-            </span>
-            <div>
-              <h2>코드가 아직 낯설다면</h2>
-              <p>게임으로 직무를 먼저 둘러봐요.</p>
-            </div>
-            <span className="game-entry-action">
-              게임 해보기 <ChevronRight size={18} />
-            </span>
-          </Link>
           <footer className="site-footer">
             <span>
-              해보기 <small>작게 해보고, 다음을 골라요.</small>
+              COMPFit <small>작게 해보고, 다음을 골라요.</small>
             </span>
             <button onClick={() => navigate("guide")}>
               이용 · 데이터 안내
@@ -2379,7 +2368,7 @@ export default function Lab({
       {view !== "home" && view !== "work" && (
         <footer className="wrap site-footer">
           <span>
-            해보기 <small>작게 해보고, 다음을 골라요.</small>
+            COMPFit <small>작게 해보고, 다음을 골라요.</small>
           </span>
           <button onClick={() => navigate("guide")}>이용 및 데이터 안내</button>
         </footer>
