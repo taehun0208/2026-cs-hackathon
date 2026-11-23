@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import ts from "typescript";
 import React from "react";
 import { JSDOM } from "jsdom";
+import { stateSchema } from "../../lib/server.ts";
 
 const require = createRequire(import.meta.url);
 const repo = fileURLToPath(new URL("../../", import.meta.url));
@@ -157,7 +158,16 @@ export async function clientHarness(t, options = {}) {
       return Response.json({ deleted: true });
     }
     assert.equal(method, "POST");
-    stored = JSON.parse(request.body);
+    let parsed;
+    try {
+      parsed = stateSchema.parse(JSON.parse(request.body));
+    } catch {
+      return Response.json(
+        { error: "저장할 내용의 형식이나 길이를 확인해주세요." },
+        { status: 400 },
+      );
+    }
+    stored = parsed;
     timestamp++;
     return Response.json(receipt());
   };
@@ -221,7 +231,11 @@ export async function clientHarness(t, options = {}) {
           node.getAttribute("aria-label") === text,
       );
       assert.ok(button, `Missing button: ${text}`);
-      assert.equal(button.disabled, false, `Disabled button: ${text}`);
+      assert.equal(
+        button.matches(":disabled"),
+        false,
+        `Disabled button: ${text}`,
+      );
       assert.equal(button.closest("[inert]"), null, `Inert button: ${text}`);
       await React.act(async () => button.click());
       await settle();
