@@ -11,6 +11,12 @@ function fixture() {
       "utf8",
     ),
   );
+  db.exec(
+    readFileSync(
+      new URL("../migrations/002_analytics.sql", import.meta.url),
+      "utf8",
+    ),
+  );
   const store = createStorage(async (text, values) =>
     db
       .prepare(text.replace(/ FOR UPDATE/g, "").replace(/\$\d+/g, "?"))
@@ -148,8 +154,22 @@ test("scheduled cleanup removes unattended expired states, calls and previous UT
   }
   for (const day of ["2026-11-22", "2026-11-23"])
     db.prepare("INSERT INTO ai_usage VALUES (?,?)").run(day + ":global", 1);
-  assert.deepEqual(await store.cleanup(), { states: 1, calls: 1, usage: 1 });
-  assert.deepEqual(await store.cleanup(), { states: 0, calls: 0, usage: 0 });
+  assert.deepEqual(await store.cleanup(), {
+    states: 1,
+    calls: 1,
+    usage: 1,
+    events: 0,
+    preferences: 0,
+    analyticsUsage: 0,
+  });
+  assert.deepEqual(await store.cleanup(), {
+    states: 0,
+    calls: 0,
+    usage: 0,
+    events: 0,
+    preferences: 0,
+    analyticsUsage: 0,
+  });
   assert.equal(
     db.prepare("SELECT owner_key FROM lab_states").get().owner_key,
     "current",

@@ -1,15 +1,26 @@
 import { neon } from "@neondatabase/serverless";
 import type { LabState } from "./missions";
+import {
+  createAnalyticsStorage,
+  type AnalyticsStorage,
+} from "./analytics-store.ts";
 import { RETENTION_MS } from "./retention.ts";
 
 export class RecordDeleted extends Error {}
 
 type SavedState = { state: LabState; updatedAt: number };
-export interface LabStorage {
+export interface LabStorage extends AnalyticsStorage {
   read(owner: string): Promise<SavedState | null>;
   save(owner: string, state: LabState): Promise<number>;
   remove(owner: string): Promise<void>;
-  cleanup(): Promise<{ states: number; calls: number; usage: number }>;
+  cleanup(): Promise<{
+    states: number;
+    calls: number;
+    usage: number;
+    events: number;
+    preferences: number;
+    analyticsUsage: number;
+  }>;
   reserve(owner: string, track: string): Promise<boolean>;
   logUsage(entry: {
     owner: string;
@@ -21,13 +32,15 @@ export interface LabStorage {
   }): Promise<void>;
 }
 
-type Query = (
+export type Query = (
   text: string,
   values: unknown[],
 ) => Promise<Record<string, unknown>[]>;
 
 export function createStorage(query: Query, now = Date.now): LabStorage {
+  const analytics = createAnalyticsStorage(query, now);
   return {
+    ...analytics,
     async read(owner) {
       const [row] = await query(
         "SELECT state,updated_at FROM lab_states WHERE owner_key=$1",
@@ -59,6 +72,7 @@ export function createStorage(query: Query, now = Date.now): LabStorage {
       return Number(rows[0].updated_at);
     },
     async remove(owner) {
+      await analytics.eraseAnalytics(owner);
       // JSON null fences old-session writes, including a timed-out request that
       // reaches the database after deletion. It contains no learner content.
       await query(
@@ -82,7 +96,9 @@ export function createStorage(query: Query, now = Date.now): LabStorage {
         "DELETE FROM ai_usage WHERE key < $1 RETURNING key",
         [new Date(now()).toISOString().slice(0, 10) + ":"],
       );
+      const cleaned = await analytics.cleanupAnalytics();
       return {
+        ...cleaned,
         states: states.length,
         calls: calls.length,
         usage: usage.length,
@@ -141,7 +157,7 @@ export async function getStorage(): Promise<LabStorage> {
     throw new Error("DATABASE_NOT_CONFIGURED");
   // Local development only. A serverless deployment must have durable storage.
   const { DatabaseSync } = await import("node:sqlite");
-  const { mkdirSync } = await import("node:fs");
+  const { mkdirSync, readFileSync } = await import("node:fs");
   const { dirname, resolve } = await import("node:path");
   const path = process.env.LAB_SQLITE_PATH ?? resolve(".local/lab.sqlite");
   if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
@@ -149,6 +165,7 @@ export async function getStorage(): Promise<LabStorage> {
   db.exec(
     "CREATE TABLE IF NOT EXISTS lab_states(owner_key TEXT PRIMARY KEY,state TEXT NOT NULL,updated_at INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS ai_usage(key TEXT PRIMARY KEY,count INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS ai_calls(id TEXT PRIMARY KEY,owner_key TEXT NOT NULL,model TEXT NOT NULL,input_tokens INTEGER NOT NULL,output_tokens INTEGER NOT NULL,latency_ms INTEGER NOT NULL,outcome TEXT NOT NULL,created_at INTEGER NOT NULL);",
   );
+  db.exec(readFileSync(resolve("migrations/002_analytics.sql"), "utf8"));
   cached = createStorage(async (text, values) => {
     // SQLite serializes writes; PostgreSQL needs the owner row lock.
     const sqlite = text.replace(/ FOR UPDATE/g, "").replace(/\$\d+/g, "?");

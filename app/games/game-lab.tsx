@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   LayoutTemplate,
   Ticket,
@@ -34,6 +40,18 @@ import {
   frontendFeedback,
 } from "../../lib/game-rules";
 import s from "./games.module.css";
+import { AnalyticsSettings, useAnalytics } from "../analytics-settings";
+import { GAME_ANALYTICS_VERSION } from "../../lib/analytics-schema";
+import type { TrackId } from "../../lib/missions";
+const GameCheckContext = createContext<(passed: boolean) => void>(() => {});
+const gameTracks: TrackId[] = [
+  "frontend",
+  "backend",
+  "data",
+  "ai",
+  "security",
+  "cloud",
+];
 
 type PlayProps = { finish: () => void };
 type Step = { label: string; done: boolean };
@@ -52,6 +70,7 @@ function Steps({ items }: { items: Step[] }) {
   );
 }
 function Checkpoint({ error, finish }: PlayProps & { error: string }) {
+  const record = useContext(GameCheckContext);
   const [checked, setChecked] = useState(false);
   return (
     <div className={s.check}>
@@ -59,6 +78,7 @@ function Checkpoint({ error, finish }: PlayProps & { error: string }) {
         className="btn primary"
         onClick={() => {
           setChecked(true);
+          record(!error);
           if (!error) finish();
         }}
       >
@@ -553,6 +573,11 @@ const games = [
   },
 ];
 export default function GameLab() {
+  const analytics = useAnalytics();
+  useEffect(() => {
+    if (analytics.status.enabled)
+      analytics.client.current?.track("page_view", { page: "games" });
+  }, [analytics.status.token]);
   const [game, setGame] = useState<number | null>(null),
     [done, setDone] = useState<number[]>([]),
     [won, setWon] = useState(false),
@@ -560,6 +585,14 @@ export default function GameLab() {
   const current = game === null ? null : games[game],
     Play = current?.play;
   const choose = (i: number | null) => {
+    if (i === null) analytics.client.current?.end("left");
+    else
+      analytics.client.current?.begin(
+        gameTracks[i],
+        "game",
+        GAME_ANALYTICS_VERSION,
+        "new",
+      );
     setGame(i);
     setWon(false);
     setAttempt((v) => v + 1);
@@ -589,6 +622,7 @@ export default function GameLab() {
           {current?.intro ??
             "코드 없이 눌러보고 바꿔보며, 직무마다 하는 일을 하나씩 경험해요."}
         </p>
+        <AnalyticsSettings analytics={analytics} />
         {!current && (
           <>
             <div className={s.catalog}>
@@ -613,15 +647,22 @@ export default function GameLab() {
         )}
         {Play && !won && (
           <div className={s.layout}>
-            <Play
-              key={attempt}
-              finish={() => {
-                if (game !== null && !done.includes(game))
-                  setDone([...done, game]);
-                setWon(true);
-                window.scrollTo({ top: 0, behavior: "instant" });
-              }}
-            />
+            <GameCheckContext.Provider
+              value={(passed) =>
+                analytics.client.current?.track("game_check", { passed })
+              }
+            >
+              <Play
+                key={attempt}
+                finish={() => {
+                  if (game !== null && !done.includes(game))
+                    setDone([...done, game]);
+                  analytics.client.current?.end("completed");
+                  setWon(true);
+                  window.scrollTo({ top: 0, behavior: "instant" });
+                }}
+              />
+            </GameCheckContext.Provider>
           </div>
         )}
         {won && current && (

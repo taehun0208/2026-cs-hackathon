@@ -321,3 +321,34 @@ test("legacy drafts retain their content and invalid cached JSON is ignored", ()
     RETENTION_MS,
   );
 });
+
+test("save acknowledgement callbacks run after success only and cannot break persistence", async () => {
+  let fail = true,
+    acknowledged = 0;
+  const f = fixture(
+    async (o) =>
+      o.method === "GET"
+        ? remote()
+        : fail
+          ? Response.json({}, { status: 503 })
+          : Response.json(receipt),
+    null,
+    {
+      onSaved: (snapshot) => {
+        acknowledged++;
+        assert.equal(snapshot.progress.frontend.code, "pending observation");
+        throw new Error("analytics callback failed");
+      },
+    },
+  );
+  await f.controller.load();
+  assert.equal(acknowledged, 0);
+  f.controller.stage(work("pending observation"));
+  await assert.rejects(f.controller.saveNow());
+  assert.equal(acknowledged, 0);
+  fail = false;
+  await f.controller.retry();
+  assert.equal(acknowledged, 1);
+  assert.equal(f.status.phase, "saved");
+  f.controller.dispose();
+});

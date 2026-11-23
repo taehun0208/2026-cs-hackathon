@@ -45,6 +45,7 @@ import {
   type TrackId,
   type Progress,
   type Profile,
+  type Reflection,
 } from "../lib/missions";
 import { missionForProgress } from "../lib/mission-catalog";
 import { runMission } from "../lib/runner";
@@ -67,6 +68,7 @@ import {
   makeNextActionPlan,
   representativeTracks,
 } from "../lib/next-actions";
+import { AnalyticsSettings, useAnalytics } from "./analytics-settings";
 import { requestCoach } from "../lib/coach-request";
 import { DeadlineExceeded } from "../lib/async-deadline";
 import {
@@ -290,6 +292,7 @@ export default function Lab() {
     expiresAt: null,
     message: "",
   });
+  const analytics = useAnalytics(saveStatus.phase !== "loading");
   const persistence = useRef<ReturnType<typeof createPersistence> | null>(null);
   const editor = useRef<HTMLTextAreaElement | null>(null);
   const ready = saveStatus.ready;
@@ -381,6 +384,11 @@ export default function Lab() {
     }));
   }
   function cancelCoach() {
+    if (coachController.current)
+      analytics.client.current?.track("ai_result", {
+        source: "none",
+        outcome: "canceled",
+      });
     coachEpoch.current += 1;
     coachController.current?.abort();
     coachController.current = null;
@@ -393,6 +401,8 @@ export default function Lab() {
   }
   function navigate(next: View) {
     cancelCoach();
+    if (view === "work" && next !== "work")
+      analytics.client.current?.end("left");
     setView(next);
     window.scrollTo({ top: 0, behavior: "instant" });
   }
@@ -407,6 +417,7 @@ export default function Lab() {
       onState: (next) => {
         if (alive) setState(next);
       },
+      onSaved: (next) => analytics.client.current?.saved(next),
       onStatus: (next) => {
         if (alive) setSaveStatus(next);
       },
@@ -438,6 +449,14 @@ export default function Lab() {
   useEffect(() => {
     persistence.current?.stage(state);
   }, [state]);
+  useEffect(() => {
+    if (!analytics.status.enabled) return;
+    analytics.client.current?.track("page_view", { page: view });
+    if (view === "compare")
+      analytics.client.current?.track("comparison_view", {
+        completedCount: completed.length,
+      });
+  }, [view, analytics.status.token, completed.length]);
   useEffect(() => {
     const fn = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !asking && !deleting) setModal(null);
@@ -527,7 +546,18 @@ export default function Lab() {
     setCategory("개발");
     setAvailableOnly(true);
     setTab("preview");
-    if (!state.progress[id]) patch(id, initialProgress(missionById(id)!));
+    const previous = state.progress[id];
+    const selectedMission = previous
+      ? missionForProgress(id, previous)
+      : missionById(id);
+    if (selectedMission)
+      analytics.client.current?.begin(
+        id,
+        "code",
+        selectedMission.contentVersion,
+        previous ? "resume" : "new",
+      );
+    if (!previous) patch(id, initialProgress(missionById(id)!));
     setModal(null);
     navigate("work");
   }
@@ -540,6 +570,7 @@ export default function Lab() {
     }
     const start = progress.code.lastIndexOf("\n", index) + 1;
     const end = progress.code.indexOf("\n", index);
+    analytics.client.current?.track("help_open", { kind: "line_locator" });
     editor.current.focus();
     editor.current.setSelectionRange(
       start,
@@ -556,6 +587,7 @@ export default function Lab() {
     setRunning(true);
     const code = progress.code;
     const executedAt = new Date().toISOString();
+    const journey = analytics.client.current?.context();
     const result = await runMission(
       mission,
       code,
@@ -569,6 +601,17 @@ export default function Lab() {
       active === "frontend"
         ? [events, category, availableOnly]
         : mission.previewArgs,
+    );
+    analytics.client.current?.track(
+      "run_result",
+      {
+        executionId: lastExecution.id,
+        kind: lastExecution.kind,
+        passed: result.tests.filter((t) => t.passed).length,
+        total: result.tests.length,
+        outcome: result.error ? "error" : "checks",
+      },
+      journey,
     );
     patch(active, {
       lastExecution,
@@ -585,6 +628,7 @@ export default function Lab() {
   function basicHint() {
     if (unavailableContent) return;
     cancelCoach();
+    analytics.client.current?.track("help_open", { kind: "basic_hint" });
     const level = Math.min(progress.hintLevel, 2);
     setHint(mission.hints[level]);
     setHintSource("기본 힌트");
@@ -601,6 +645,8 @@ export default function Lab() {
       );
       return;
     }
+    analytics.client.current?.track("help_open", { kind: "ai_request" });
+    const journey = analytics.client.current?.context();
     const requestEpoch = ++coachEpoch.current;
     const controller = new AbortController();
     coachController.current = controller;
@@ -636,6 +682,11 @@ export default function Lab() {
       );
       if (requestEpoch !== coachEpoch.current) return;
 
+      analytics.client.current?.track(
+        "ai_result",
+        { source: d.source, outcome: "received" },
+        journey,
+      );
       setHint(d.message);
       setCoachTrace(d.trace ?? []);
       setCoachReferences(d.references ?? []);
@@ -646,6 +697,11 @@ export default function Lab() {
       patch(active, { hintLevel: Math.min(progress.hintLevel + 1, 3) });
     } catch (error) {
       if (requestEpoch !== coachEpoch.current) return;
+      analytics.client.current?.track(
+        "ai_result",
+        { source: "guide", outcome: "failed" },
+        journey,
+      );
       setHint(mission.hints[Math.min(progress.hintLevel, 2)]);
       setHintSource("기본 힌트");
       toast(
@@ -710,15 +766,16 @@ export default function Lab() {
       nextReason,
     );
     if (!nextPlan || !selectedNext) return;
-    patch(active, {
-      reflection: {
-        ...reflection,
-        next: selectedNext.title,
-        nextPlan,
-        endedAt: new Date().toISOString(),
-        execution: currentExecution(progress),
-      },
-    });
+    const recorded: Reflection = {
+      ...reflection,
+      next: selectedNext.title,
+      nextPlan,
+      endedAt: new Date().toISOString(),
+      execution: currentExecution(progress),
+    };
+    analytics.client.current?.reflectionSubmitted(active, recorded);
+    analytics.client.current?.end("submitted");
+    patch(active, { reflection: recorded });
     setModal(null);
     navigate("journal");
     toast("체험과 회고를 기록했어요. 다른 작업도 비교해보세요.");
@@ -736,9 +793,11 @@ export default function Lab() {
   }
   async function erase() {
     cancelCoach();
+    analytics.client.current?.pause();
     if (await persistence.current?.remove()) {
       setModal(null);
       navigate("home");
+      void analytics.client.current?.load();
       toast("서버와 이 기기의 체험 기록을 삭제했어요.");
     }
   }
@@ -1143,7 +1202,15 @@ export default function Lab() {
                   </li>
                 ))}
               </ol>
-              <details className="primer">
+              <details
+                className="primer"
+                onToggle={(e) => {
+                  if (e.currentTarget.open)
+                    analytics.client.current?.track("help_open", {
+                      kind: "primer",
+                    });
+                }}
+              >
                 <summary>문법이 가물가물한가요?</summary>
                 <p>작은 예제로 필요한 문법부터 확인해보세요.</p>
                 <pre>
@@ -2023,6 +2090,7 @@ export default function Lab() {
                   ? "맞춤 힌트 사용 가능"
                   : "AI 연결 전 · 기본 힌트 사용 가능"}
               </p>
+              <AnalyticsSettings analytics={analytics} />
               <h2>어떤 기기에서 이용할 수 있나요?</h2>
               <p>
                 코드 체험은 데스크톱의 Chrome이나 Edge를 권장해요. 휴대폰에서는
@@ -2153,6 +2221,13 @@ export default function Lab() {
                             onChange={() => {
                               setSelectedNextId(candidate.id);
                               setNextReason("");
+                              analytics.client.current?.track(
+                                "next_action_selected",
+                                {
+                                  kind: candidate.kind,
+                                  targetTrack: candidate.track,
+                                },
+                              );
                             }}
                           />
                           <span>{candidate.title}</span>
@@ -2243,6 +2318,9 @@ export default function Lab() {
                   <button
                     className="btn primary"
                     onClick={() => {
+                      analytics.client.current?.track("help_open", {
+                        kind: "reference",
+                      });
                       patch(active, {
                         ...changeCode(progress, mission.solution, "reference"),
                         usedSolution: true,

@@ -74,6 +74,7 @@ export function createPersistence(options: {
   storage: Pick<Storage, "getItem" | "setItem" | "removeItem">;
   onState: (state: LabState) => void;
   onStatus: (status: SaveStatus) => void;
+  onSaved?: (state: LabState) => void;
   fetcher?: typeof fetch;
   debounceMs?: number;
   timeoutMs?: number;
@@ -169,6 +170,10 @@ export function createPersistence(options: {
           }
           if (!data.savedAt || !data.expiresAt)
             throw new Error("INVALID_SAVE_RECEIPT");
+          // Optional telemetry cannot change the outcome of a successful save.
+          try {
+            options.onSaved?.(snapshot);
+          } catch {}
           synced = fingerprint(snapshot);
           emit({ savedAt: data.savedAt, expiresAt: data.expiresAt });
           writeLocal();
