@@ -12,6 +12,7 @@ import {
   aiRounds,
   cloudRounds,
   dataRounds,
+  frontendRounds,
   securityRounds,
 } from "../lib/game-rounds.ts";
 
@@ -84,4 +85,8 @@ test("AI rounds include a grounded 'I don't know' answer as correct", () => {
     [0, 1, 2, 0],
   );
   assert.match(aiRounds[3].facts[2], /주차 안내가 없어요/);
+});
+test("frontend reason rounds are well formed and ask about each setting", () => {
+  wellFormed(frontendRounds);
+  assert.equal(frontendRounds.length, 3);
 });

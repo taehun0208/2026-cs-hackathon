@@ -27,6 +27,7 @@ import {
   aiRounds,
   cloudRounds,
   dataRounds,
+  frontendRounds,
   securityRounds,
 } from "../../lib/game-rounds";
 
@@ -61,7 +62,8 @@ export function Frontend({ finish }: PlayProps) {
   const [wrap, setWrap] = useState<Fit>("nowrap"),
     [fit, setFit] = useState<"fixed" | "fill">("fixed"),
     [auto, setAuto] = useState<"fixed" | "auto">("fixed"),
-    [cut, setCut] = useState<boolean[]>(scenes.map(() => false));
+    [cut, setCut] = useState<boolean[]>(scenes.map(() => false)),
+    [stage, setStage] = useState<"fix" | "why">("fix");
   const buttons = useRef<(HTMLSpanElement | null)[]>([]);
   const cells = useRef<(HTMLDivElement | null)[]>([]);
   useEffect(() => {
@@ -98,6 +100,20 @@ export function Frontend({ finish }: PlayProps) {
     };
   }, [wrap, fit, auto]);
   const failing = cut.filter(Boolean).length;
+  if (stage === "why")
+    return (
+      <Rounds
+        title="방금 고친 이유"
+        rounds={frontendRounds}
+        shuffle
+        finish={finish}
+        board={
+          <p className={s.readout}>
+            4가지 상황이 모두 통과했어요. 왜 그렇게 고쳤는지 확인해봐요.
+          </p>
+        }
+      />
+    );
   return (
     <>
       <Board title="신청 취소 버튼 · 4가지 상황">
@@ -209,7 +225,7 @@ export function Frontend({ finish }: PlayProps) {
           error={
             failing ? `아직 이름이 잘리는 상황이 ${failing}개 남아 있어요.` : ""
           }
-          finish={finish}
+          finish={() => setStage("why")}
         />
       </section>
     </>
