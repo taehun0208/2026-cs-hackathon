@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { frontendRounds } from "../lib/game-rounds.ts";
 import { clientHarness } from "./helpers/client-harness.mjs";
 
 test("game transitions put keyboard focus on the new screen heading", async (t) => {
@@ -37,6 +38,12 @@ test("game transitions put keyboard focus on the new screen heading", async (t) 
 });
 
 test("frontend result is remeasured when the available screen width changes", async (t) => {
+  const previousFrame = globalThis.requestAnimationFrame;
+  globalThis.requestAnimationFrame = (callback) => setTimeout(callback, 0);
+  t.after(() => {
+    if (previousFrame) globalThis.requestAnimationFrame = previousFrame;
+    else delete globalThis.requestAnimationFrame;
+  });
   const f = await clientHarness(t, { game: true });
   const document = f.dom.window.document;
   const sample = document.querySelector(".sample");
@@ -59,6 +66,18 @@ test("frontend result is remeasured when the available screen width changes", as
     f.dom.window.dispatchEvent(new f.dom.window.Event("resize"));
   });
   await f.click("결과 확인");
+  // 4가지 상황을 통과하면 바로 끝나지 않고, 고친 이유를 확인하는 단계가 나와요.
+  assert.equal(document.querySelector("#game-complete-title"), null);
+  assert.match(document.body.textContent, /방금 고친 이유/);
+  for (const [index, round] of frontendRounds.entries()) {
+    const choice = [...document.querySelectorAll("fieldset label")].find(
+      (l) => l.textContent.trim() === round.options[round.answer],
+    );
+    await f.act(async () => choice.querySelector("input").click());
+    await f.click("판정하기");
+    await f.click(index === frontendRounds.length - 1 ? "결과 보기" : "다음 상황");
+  }
+  await f.click("마치기");
   assert.ok(document.querySelector("#game-complete-title"));
 });
 
