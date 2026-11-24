@@ -221,3 +221,13 @@ export const dataRounds: Round[] = [
     "통과 횟수 13회에서 실제 사람 수 6명을 빼면 7회예요. 같은 기록도 질문에 따라 세는 기준이 달라져요.",
   ),
 ];
+
+// 보기 위치를 섞어요. 정답 위치를 외워서 맞히지 못하도록 시작할 때마다 새로 섞어요.
+export function shuffleOrder(length: number, random = Math.random) {
+  const order = Array.from({ length }, (_, i) => i);
+  for (let i = length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  return order;
+}

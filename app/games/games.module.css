@@ -653,3 +653,27 @@
     min-height: 0;
   }
 }
+
+.terms {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #f4f6f9;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.terms div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+}
+.terms dt {
+  font-weight: 700;
+  color: #1f2a37;
+}
+.terms dd {
+  margin: 0;
+  color: #4e5968;
+}

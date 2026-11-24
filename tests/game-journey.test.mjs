@@ -7,7 +7,11 @@ import { clientHarness } from "./helpers/client-harness.mjs";
 async function gameHarness(t) {
   const previousFrame = globalThis.requestAnimationFrame;
   globalThis.requestAnimationFrame = (callback) => setTimeout(callback, 0);
+  // 보기 섞기를 고정해서(항상 원래 순서) 정답 위치를 기준으로 클릭하는 시나리오를 유지해요.
+  const previousRandom = Math.random;
+  Math.random = () => 0.999999;
   t.after(() => {
+    Math.random = previousRandom;
     if (previousFrame) globalThis.requestAnimationFrame = previousFrame;
     else delete globalThis.requestAnimationFrame;
   });
