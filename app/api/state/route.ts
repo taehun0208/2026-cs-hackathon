@@ -8,6 +8,7 @@ import {
   readBody,
   sameOrigin,
   stateSchema,
+  STATE_BODY_LIMIT,
 } from "../../../lib/server";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,7 +43,7 @@ export async function POST(req: Request) {
   const id = identity(req, false, true);
   let state;
   try {
-    state = stateSchema.parse(await readBody(req));
+    state = stateSchema.parse(await readBody(req, STATE_BODY_LIMIT));
   } catch {
     return json({ error: "저장할 내용의 형식이나 길이를 확인해주세요." }, 400);
   }

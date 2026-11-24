@@ -42,3 +42,17 @@ export function Board({
     </section>
   );
 }
+
+// 코드를 모르는 사람을 위한 짧은 용어 설명.
+export function Terms({ items }: { items: [string, string][] }) {
+  return (
+    <dl className={s.terms} aria-label="용어 설명">
+      {items.map(([term, meaning]) => (
+        <div key={term}>
+          <dt>{term}</dt>
+          <dd>{meaning}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}

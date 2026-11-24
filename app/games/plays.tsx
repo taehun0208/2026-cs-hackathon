@@ -3,7 +3,13 @@
 import { useContext, useEffect, useRef, useState } from "react";
 import { Ticket } from "lucide-react";
 import s from "./games.module.css";
-import { Board, Checkpoint, GameCheckContext, type PlayProps } from "./shared";
+import {
+  Board,
+  Checkpoint,
+  GameCheckContext,
+  Terms,
+  type PlayProps,
+} from "./shared";
 import { Rounds } from "./rounds";
 import {
   people,
@@ -135,6 +141,13 @@ export function Frontend({ finish }: PlayProps) {
           속성을 바꾸면 4가지 상황이 함께 바뀌어요. 현재 잘리는 상황 {failing}
           개.
         </p>
+        <Terms
+          items={[
+            ["px", "화면에서 길이를 재는 단위예요. 숫자가 클수록 길어요."],
+            ["고정", "정해 둔 크기 그대로 두는 거예요."],
+            ["맞춤", "칸이나 내용의 크기에 따라 알아서 바뀌어요."],
+          ]}
+        />
         <fieldset className={s.choices}>
           <legend>글자 줄바꿈</legend>
           {(
@@ -404,12 +417,18 @@ export function Data({ finish }: PlayProps) {
   );
 }
 export const AI = ({ finish }: PlayProps) => (
-  <Rounds title="안내 봇 답변 채점표" rounds={aiRounds} finish={finish} />
+  <Rounds
+    title="안내 봇 답변 채점표"
+    rounds={aiRounds}
+    shuffle
+    finish={finish}
+  />
 );
 export const Security = ({ finish }: PlayProps) => (
   <Rounds
     title="신청 내역 접근 요청"
     rounds={securityRounds}
+    shuffle
     finish={finish}
     board={
       <div className={s.rules} aria-label="판정 기준">
@@ -419,6 +438,14 @@ export const Security = ({ finish }: PlayProps) => (
           <li>로그인한 사용자는 자신의 신청을 조회·삭제할 수 있어요.</li>
           <li>관리자는 다른 사람의 신청을 조회만 할 수 있어요.</li>
         </ul>
+        <Terms
+          items={[
+            ["200 · 401 · 403", "서버가 요청에 돌려주는 응답 번호예요."],
+            ["200", "허용해요."],
+            ["401", "누구인지 몰라서 로그인부터 요구해요."],
+            ["403", "누구인지는 알지만 권한이 없어요."],
+          ]}
+        />
       </div>
     }
   />
@@ -427,6 +454,7 @@ export const Cloud = ({ finish }: PlayProps) => (
   <Rounds
     title="새 버전 관제 화면"
     rounds={cloudRounds}
+    shuffle
     finish={finish}
     board={
       <div className={s.rules} aria-label="판정 기준">
@@ -438,6 +466,16 @@ export const Cloud = ({ finish }: PlayProps) => (
           </li>
           <li>두 기준을 모두 지키면 더 많은 사용자에게 공개해요.</li>
         </ul>
+        <Terms
+          items={[
+            ["오류율", "전체 요청 중 실패한 요청의 비율이에요."],
+            [
+              "p95 응답 시간",
+              "요청 100개 중 95개가 이 시간 안에 끝났다는 뜻이에요. 느린 쪽 사용자가 겪는 속도를 봐요.",
+            ],
+            ["ms", "1000분의 1초예요. 500ms는 0.5초예요."],
+          ]}
+        />
       </div>
     }
   />
