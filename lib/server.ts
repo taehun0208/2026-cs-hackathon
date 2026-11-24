@@ -4,6 +4,11 @@ import { validNextActionPlan } from "./next-actions.ts";
 import { abortable } from "./async-deadline.ts";
 export { getStorage } from "./storage.ts";
 
+// A full record includes six 20,000-character editors plus both the latest
+// execution and the reflection's execution snapshot (up to 50,000 each).
+// Keep this route's aggregate allowance separate from small action requests.
+export const STATE_BODY_LIMIT = 1_000_000;
+
 const test = z.object({
   label: z.string().max(200),
   passed: z.boolean(),

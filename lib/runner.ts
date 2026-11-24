@@ -27,9 +27,47 @@ export function runMission(
         !r ||
         !Array.isArray(r.tests) ||
         r.tests.length > mission.tests.length ||
-        JSON.stringify(r).length > 50000
-      )
+        (r.error !== undefined &&
+          (typeof r.error !== "string" || r.error.length > 2000)) ||
+        !r.tests.every(
+          (test: RunResult["tests"][number] | null) =>
+            test &&
+            typeof test === "object" &&
+            typeof test.label === "string" &&
+            test.label.length <= 200 &&
+            typeof test.why === "string" &&
+            test.why.length <= 600 &&
+            typeof test.passed === "boolean" &&
+            (test.error === undefined ||
+              (typeof test.error === "string" && test.error.length <= 1000)),
+        )
+      ) {
+        finish({
+          tests: [],
+          preview: null,
+          error: "실행 결과 형식을 확인할 수 없어요. 반환값을 확인해주세요.",
+        });
         return;
+      }
+      try {
+        if (JSON.stringify(r).length > 50000) {
+          finish({
+            tests: [],
+            preview: null,
+            error:
+              "실행 결과가 너무 커요. 필요한 항목만 반환하거나 출력 크기를 줄여주세요.",
+          });
+          return;
+        }
+      } catch {
+        finish({
+          tests: [],
+          preview: null,
+          error:
+            "반환값을 표시할 수 없어요. 순환 참조나 BigInt 대신 일반 값·배열·객체를 반환해주세요.",
+        });
+        return;
+      }
       finish(r);
     };
     window.addEventListener("message", listener);
