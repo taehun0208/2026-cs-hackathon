@@ -11,7 +11,7 @@ import {
 import { ArrowRight, Check, X } from "lucide-react";
 import s from "./games.module.css";
 import { Board, GameCheckContext, type PlayProps } from "./shared";
-import type { Round } from "../../lib/game-rounds";
+import { shuffleOrder, type Round } from "../../lib/game-rounds";
 
 // 상황 카드 → 선택 → 판정하기 → 해설. 정답은 답한 뒤에만 보여줘요.
 export function Rounds({
@@ -19,13 +19,26 @@ export function Rounds({
   title,
   board,
   finish,
-}: PlayProps & { rounds: Round[]; title: string; board?: ReactNode }) {
+  shuffle = false,
+}: PlayProps & {
+  rounds: Round[];
+  title: string;
+  board?: ReactNode;
+  shuffle?: boolean;
+}) {
   const record = useContext(GameCheckContext);
   const [index, setIndex] = useState(0),
     [choice, setChoice] = useState<number | null>(null),
     [revealed, setRevealed] = useState(false),
     [results, setResults] = useState<boolean[]>([]),
     [summary, setSummary] = useState(false);
+  // 처음에는 원래 순서로 그리고, 화면이 열린 뒤에 섞어요(서버 렌더와 어긋나지 않게).
+  const [orders, setOrders] = useState<number[][]>(() =>
+    rounds.map((r) => r.options.map((_, i) => i)),
+  );
+  useEffect(() => {
+    if (shuffle) setOrders(rounds.map((r) => shuffleOrder(r.options.length)));
+  }, [rounds, shuffle]);
   const heading = useRef<HTMLHeadingElement>(null);
   const nextAction = useRef<HTMLButtonElement>(null);
   const feedbackId = useId();
@@ -33,12 +46,14 @@ export function Rounds({
     if (revealed) nextAction.current?.focus();
   }, [revealed]);
   const round = rounds[index];
+  const order = orders[index];
+  const answerAt = order.indexOf(round.answer);
   const last = index === rounds.length - 1;
   const focusHeading = () =>
     requestAnimationFrame(() => heading.current?.focus());
   const judge = () => {
     if (choice === null) return;
-    const correct = choice === round.answer;
+    const correct = choice === answerAt;
     record(correct);
     setResults([...results, correct]);
     setRevealed(true);
@@ -78,15 +93,15 @@ export function Rounds({
             </h2>
             <fieldset className={s.choices} disabled={revealed}>
               <legend className={s.legend}>답 고르기</legend>
-              {round.options.map((option, i) => (
-                <label className={s.option} key={option}>
+              {order.map((original, i) => (
+                <label className={s.option} key={original}>
                   <input
                     type="radio"
                     name={`round-${index}`}
                     checked={choice === i}
                     onChange={() => setChoice(i)}
                   />
-                  {option}
+                  {round.options[original]}
                 </label>
               ))}
             </fieldset>
